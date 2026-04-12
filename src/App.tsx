@@ -4793,6 +4793,7 @@ export default function App() {
   const [customTests, setCustomTests] = useState<any[]>([]);
   const [activeCustomTest, setActiveCustomTest] = useState<any | null>(null);
   const [isAnalyzingTest, setIsAnalyzingTest] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [view, setView] = useState<'dashboard' | 'admin' | 'guide' | 'create-test'>('dashboard');
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
 
@@ -5016,11 +5017,18 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
   };
 
   const handleLogin = async () => {
+    setIsLoggingIn(true);
     try {
       await signInWithGoogle();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login Error:", error);
-      showToast("Gagal masuk dengan Google. Silakan coba lagi.", 'error');
+      if (error.code === 'auth/popup-blocked') {
+        showToast("Popup diblokir oleh browser. Silakan izinkan popup untuk masuk.", 'error');
+      } else {
+        showToast("Gagal masuk dengan Google. Silakan coba lagi.", 'error');
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -5068,11 +5076,47 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
           </p>
           <button 
             onClick={handleLogin}
-            className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-3 shadow-lg"
+            disabled={isLoggingIn}
+            className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mb-4"
           >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
-            Masuk dengan Google
+            {isLoggingIn ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+            ) : (
+              <>
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+                Masuk dengan Google
+              </>
+            )}
           </button>
+
+          <button 
+            onClick={() => {
+              const guestUser: UserProfile = {
+                uid: 'guest_' + Math.random().toString(36).substr(2, 9),
+                name: 'Tamu',
+                email: 'guest@example.com',
+                role: 'student',
+                createdAt: serverTimestamp()
+              };
+              setUser(guestUser);
+              setShowProfileSetup(true);
+            }}
+            className="w-full bg-white text-slate-600 py-4 rounded-2xl font-bold border-2 border-slate-100 hover:bg-slate-50 transition-all flex items-center justify-center gap-3"
+          >
+            Masuk sebagai Tamu (Siswa)
+          </button>
+
+          <div className="mt-8 p-4 bg-amber-50 rounded-2xl border border-amber-100 text-left">
+            <div className="flex gap-3">
+              <Info className="w-5 h-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-amber-900 mb-1">Masalah Login?</p>
+                <p className="text-[10px] text-amber-800 leading-relaxed">
+                  Jika tombol tidak merespon, pastikan domain ini sudah terdaftar di <b>Authorized Domains</b> pada Firebase Console Anda.
+                </p>
+              </div>
+            </div>
+          </div>
         </motion.div>
       </div>
     );
