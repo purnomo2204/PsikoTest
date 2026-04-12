@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile data for students and teachers.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "teacher", "admin"] },
+        "classId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "TestResult": {
+      "title": "Test Result",
+      "description": "Results of a psychological test taken by a student.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "$ref": "Student" },
+        "studentName": { "type": "string" },
+        "testType": { "type": "string", "enum": ["learning_style", "multiple_intelligences", "personality", "aptitude_interest", "school_major", "anxiety"] },
+        "scores": { "type": "object" },
+        "analysis": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "studentName", "testType", "scores", "analysis", "timestamp"]
+    },
+    "Class": {
+      "title": "Class Room",
+      "description": "Grouping of students for reports.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "teacherId": { "type": "string" }
+      },
+      "required": ["id", "name", "teacherId"]
+    },
+    "Student": {
+      "title": "Student Database",
+      "description": "Pre-registered students for the test.",
+      "type": "object",
+      "properties": {
+        "number": { "type": "string" },
+        "name": { "type": "string" },
+        "className": { "type": "string" },
+        "addedBy": { "type": "string" }
+      },
+      "required": ["name", "className", "addedBy"]
+    },
+    "TeacherSettings": {
+      "title": "Teacher Settings",
+      "description": "Additional info for the teacher/counselor.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "nip": { "type": "string" }
+      },
+      "required": ["name", "nip"]
+    },
+    "CustomTest": {
+      "title": "Custom Test",
+      "description": "User-created psychological test.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "testType": { "type": "string" },
+        "questions": { "type": "array" },
+        "aiRecommendation": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "testType", "questions", "isActive", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profile documents." },
+    "/test_results/{resultId}": { "schema": "TestResult", "description": "Test result documents." },
+    "/classes/{classId}": { "schema": "Class", "description": "Class room documents." },
+    "/students/{studentId}": { "schema": "Student", "description": "Pre-registered student documents." },
+    "/teacher_settings/{uid}": { "schema": "TeacherSettings", "description": "Teacher settings documents." },
+    "/custom_tests/{testId}": { "schema": "CustomTest", "description": "Custom test documents." }
+  }
+}
