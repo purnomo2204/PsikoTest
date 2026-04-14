@@ -17,6 +17,7 @@ export interface TestResult {
   id?: string;
   studentId: string;
   studentName: string;
+  studentEmail?: string;
   studentClass?: string;
   studentNisn?: string;
   testType: TestType;
@@ -47,6 +48,16 @@ export interface TeacherSettings {
   schoolAddress?: string;
   pemdaName?: string;
   dinasName?: string;
+}
+
+export interface Notification {
+  id?: string;
+  userId: string; // 'all' for all students, or specific user ID
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'success';
+  read: boolean;
+  timestamp: any;
 }
 
 export interface Question {

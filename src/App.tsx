@@ -1495,7 +1495,7 @@ Berikan penjelasan yang lebih mendalam, personal, dan memotivasi untuk siswa ini
               </div>
             </div>
             <div className="mb-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-sm text-emerald-800">
-              <p dangerouslySetInnerHTML={{ __html: `${summaryText} Penjelasan lebih lanjut tentang hasil tes bisa dibaca pada lampiran surat keterangan ini.` }} />
+              <p dangerouslySetInnerHTML={{ __html: summaryText }} />
             </div>
             <div className="prose prose-sm prose-emerald max-w-none text-slate-600">
               <ReactMarkdown>{result.analysis}</ReactMarkdown>
@@ -1503,7 +1503,7 @@ Berikan penjelasan yang lebih mendalam, personal, dan memotivasi untuk siswa ini
 
             <div className="mt-6 p-4 bg-amber-50 rounded-xl border border-amber-100">
               <p className="text-xs text-amber-800 leading-relaxed">
-                <span className="font-bold">Catatan :</span> Penjelasan lebih lanjut tentang hasil tes bisa dibaca pada lampiran surat keterangan ini.
+                <span className="font-bold">Catatan :</span> Untuk penjelasan lebih mendalam tentang hasil tes Anda, silakan tekan tombol "ANALISA AI" di sebelah kanan tombol "UNDUH LAPORAN".
               </p>
             </div>
             
@@ -1565,7 +1565,7 @@ Berikan penjelasan yang lebih mendalam, personal, dan memotivasi untuk siswa ini
 const TestCreator = ({ onBack, showToast }: { onBack: () => void, showToast: (m: string, t?: 'success' | 'error' | 'info') => void }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [testType, setTestType] = useState<TestType>('personality');
+  const [testCategory, setTestCategory] = useState('');
   const [questions, setQuestions] = useState<Question[]>([
     { id: 'q1', text: '', options: [{ text: '', value: '', score: 1 }] }
   ]);
@@ -1682,12 +1682,22 @@ const TestCreator = ({ onBack, showToast }: { onBack: () => void, showToast: (m:
       await addDoc(collection(db, 'custom_tests'), {
         title,
         description,
-        testType,
+        testType: testCategory || 'custom',
         questions,
         aiRecommendation,
         createdAt: serverTimestamp(),
         isActive: true
       });
+      
+      await addDoc(collection(db, 'notifications'), {
+        userId: 'all',
+        title: 'Tes Baru Tersedia!',
+        message: `Tes baru "${title}" telah tersedia. Silakan cek dan kerjakan tes tersebut.`,
+        type: 'info',
+        read: false,
+        timestamp: serverTimestamp()
+      });
+
       showToast('Tes psikologi baru berhasil dibuat!', 'success');
       onBack();
     } catch (error) {
@@ -1720,16 +1730,14 @@ const TestCreator = ({ onBack, showToast }: { onBack: () => void, showToast: (m:
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">Jenis Tes (Kategori)</label>
-              <select 
-                value={testType}
-                onChange={(e) => setTestType(e.target.value as TestType)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-600 outline-none text-sm appearance-none bg-white"
-              >
-                {Object.entries(TESTS).map(([key, value]) => (
-                  <option key={key} value={key}>{value.title}</option>
-                ))}
-              </select>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">Jenis / Kategori Tes</label>
+              <input 
+                type="text" 
+                value={testCategory}
+                onChange={(e) => setTestCategory(e.target.value)}
+                placeholder="Contoh: Kepribadian, Minat Bakat, dll"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-600 outline-none text-sm"
+              />
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-700 mb-1.5">Deskripsi</label>
@@ -1820,9 +1828,65 @@ const TestCreator = ({ onBack, showToast }: { onBack: () => void, showToast: (m:
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-lg font-bold flex items-center gap-2">
-              <ClipboardCheck className="w-5 h-5 text-emerald-600" /> Daftar Pertanyaan
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <ClipboardCheck className="w-5 h-5 text-emerald-600" /> Daftar Pertanyaan
+              </h3>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => {
+                    const data = [
+                      ["Pertanyaan", "Opsi 1", "Opsi 2", "Skor"],
+                      ["Contoh: Apakah Anda suka bekerja dengan angka?", "Ya", "Tidak", "1"]
+                    ];
+                    const ws = XLSX.utils.aoa_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Template");
+                    XLSX.writeFile(wb, "Template_Pertanyaan_PsikoTest.xlsx");
+                  }}
+                  className="px-3 py-1.5 bg-white text-emerald-600 rounded-lg text-[10px] font-black border border-emerald-200 hover:bg-emerald-50 transition-all flex items-center gap-1 shadow-sm"
+                >
+                  <Download className="w-3 h-3" /> TEMPLATE
+                </button>
+                <div className="relative">
+                  <input 
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (evt) => {
+                        const bstr = evt.target?.result;
+                        const wb = XLSX.read(bstr, { type: 'binary' });
+                        const wsname = wb.SheetNames[0];
+                        const ws = wb.Sheets[wsname];
+                        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+                        const newQuestions: Question[] = data.slice(1).map((row, idx) => ({
+                          id: `q-${Date.now()}-${idx}`,
+                          text: row[0] || '',
+                          options: [
+                            { text: row[1] || 'Ya', value: 'opsi_1', score: parseInt(row[3]) || 1 },
+                            { text: row[2] || 'Tidak', value: 'opsi_2', score: 0 }
+                          ]
+                        })).filter(q => q.text);
+                        if (newQuestions.length > 0) {
+                          setQuestions([...questions, ...newQuestions]);
+                          showToast(`${newQuestions.length} pertanyaan berhasil diimpor!`, 'success');
+                        } else {
+                          showToast('Format file tidak sesuai atau tidak ada data.', 'error');
+                        }
+                      };
+                      reader.readAsBinaryString(file);
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <button className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black hover:bg-emerald-700 transition-all flex items-center gap-1 shadow-sm">
+                    <Upload className="w-3 h-3" /> UPLOAD TEMPLATE
+                  </button>
+                </div>
+              </div>
+            </div>
             
             {questions.map((q, qIdx) => (
               <div key={qIdx} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
@@ -3933,6 +3997,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     <tr>
                       <th className="px-6 py-4">Siswa</th>
                       <th className="px-6 py-4">Kelas</th>
+                      <th className="px-6 py-4">ALAMAT EMAIL</th>
                       <th className="px-6 py-4">Jenis Tes</th>
                       <th className="px-6 py-4">Tanggal</th>
                       <th className="px-6 py-4">Waktu</th>
@@ -3952,6 +4017,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                           </button>
                         </td>
                         <td className="px-6 py-4 text-slate-600 font-medium">{r.studentClass || '-'}</td>
+                        <td className="px-6 py-4 text-slate-500 font-medium">{r.studentEmail || allUsers.find(u => u.uid === r.studentId)?.email || '-'}</td>
                         <td className="px-6 py-4">
                           <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-black border border-emerald-100/50 tracking-wide">
                             {TESTS[r.testType]?.title || r.testType}
@@ -4011,7 +4077,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     ))}
                     {tableFilteredResults.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">Tidak ada hasil yang cocok dengan filter.</td>
+                        <td colSpan={8} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">Tidak ada hasil yang cocok dengan filter.</td>
                       </tr>
                     )}
                   </tbody>
@@ -4462,6 +4528,15 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     </div>
                   </div>
                 )}
+
+                <div className="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-200 w-full">
+                  <h3 className="text-sm font-black text-slate-900 mb-2 flex items-center gap-2 uppercase tracking-wider">
+                    <Info className="w-4 h-4 text-emerald-600" /> Pengembang Aplikasi
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                    Aplikasi ini di desain & dikembangkan oleh: <span className="font-bold text-slate-700">W. Purnomo-SMPN 2 Magelang</span>
+                  </p>
+                </div>
               </div>
             </motion.div>
           )}
@@ -4915,6 +4990,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                         <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Tanggal</th>
                         <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Waktu</th>
                         <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Nama Peserta Umum</th>
+                        <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">ALAMAT EMAIL</th>
                         <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Jenjang / Asal</th>
                         <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Jenis Tes</th>
                         <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Hasil/Skor</th>
@@ -4941,6 +5017,9 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                           </td>
                           <td className="p-4">
                             <div className="font-bold text-slate-900">{result.studentName}</div>
+                          </td>
+                          <td className="p-4 text-sm font-medium text-slate-600">
+                            {result.studentEmail || allUsers.find(u => u.uid === result.studentId)?.email || '-'}
                           </td>
                           <td className="p-4">
                             <div className="text-xs font-bold text-slate-700">{result.studentClass || 'UMUM'}</div>
@@ -4987,7 +5066,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                       ))}
                       {results.filter(r => !registeredClassNames.includes(r.studentClass)).length === 0 && (
                         <tr>
-                          <td colSpan={5} className="p-8 text-center text-slate-500 font-medium">
+                          <td colSpan={8} className="p-8 text-center text-slate-500 font-medium">
                             Belum ada data riwayat tes untuk tamu.
                           </td>
                         </tr>
@@ -5265,7 +5344,15 @@ const IdentityForm = ({ classes, students, onSave, onLogout, initialStep = 'init
 
             <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
               <p className="text-[11px] text-amber-800 leading-relaxed">
-                <span className="font-bold">Petunjuk :</span> Siswa SMP Negeri 2 Magelang yang terdaftar, silahkan pilih tombol <span className="font-bold">SISWA TERDAFTAR</span>, bagi peserta tes yang lain silahkan pilih tombol <span className="font-bold">UMUM</span>.
+                <span className="font-bold">Petunjuk :</span> Siswa yang terdaftar sebagai siswa bimbingan, silahkan pilih tombol <span className="font-bold">SISWA TERDAFTAR</span> (Login dengan menggunakan NISN). Apabila belum terdaftar silahkan hubungi guru BK, bagi peserta tes yang lain silahkan pilih tombol <span className="font-bold">UMUM</span>.
+              </p>
+            </div>
+            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+              <p className="text-[11px] text-blue-800 leading-relaxed">
+                <span className="font-bold">Info:</span> Gunakan tombol "MASUK TANPA AKUN GOOGLE" jika gagal masuk melalui tombol ketiga di atas.
+              </p>
+              <p className="text-[11px] text-blue-800 leading-relaxed mt-2">
+                <span className="font-bold">Refresh:</span> Refresh aplikasi apabila layar blank atau gagal login, tombol berupa tanda panah melingkar berada di kiri atas layar.
               </p>
             </div>
           </div>
@@ -5709,6 +5796,7 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
     const result: TestResult = {
       studentId: user.uid,
       studentName: user.name,
+      studentEmail: user.email || '',
       studentClass: user.className || 'Umum',
       studentNisn: user.nisn || '',
       testType: testType,
@@ -5719,6 +5807,28 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
 
     try {
       const docRef = await addDoc(collection(db, 'test_results'), result);
+      
+      // Notify teacher if anxiety is high
+      if (testType === 'anxiety' && scores['anxiety_score'] > 15) {
+        await addDoc(collection(db, 'notifications'), {
+          userId: 'admin', // Assuming admin is the teacher
+          title: 'Perhatian: Hasil Tes Kecemasan Tinggi',
+          message: `Siswa ${result.studentName} (${result.studentClass}) mendapatkan skor kecemasan tinggi. Mohon segera ditindaklanjuti.`,
+          type: 'warning',
+          read: false,
+          timestamp: serverTimestamp()
+        });
+      } else {
+        await addDoc(collection(db, 'notifications'), {
+          userId: 'admin',
+          title: 'Tes Baru Selesai',
+          message: `Siswa ${result.studentName} (${result.studentClass}) telah menyelesaikan tes ${testType}.`,
+          type: 'success',
+          read: false,
+          timestamp: serverTimestamp()
+        });
+      }
+
       setTestResult({ ...result, id: docRef.id });
       setActiveTest(null);
       setActiveCustomTest(null);
@@ -5841,7 +5951,7 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
 
             <div className="mt-8 p-5 bg-amber-50 rounded-2xl border border-amber-100 text-left">
               <p className="text-[11px] text-amber-900 leading-relaxed">
-                <span className="font-black text-amber-700">Petunjuk :</span> Siswa SMP Negeri 2 Magelang yang terdaftar, silahkan pilih tombol <b>SISWA TERDAFTAR</b>, bagi peserta tes yang lain silahkan pilih tombol <b>UMUM</b>.
+                <span className="font-black text-amber-700">Petunjuk :</span> Siswa yang terdaftar sebagai siswa bimbingan, silahkan pilih tombol <b>SISWA TERDAFTAR</b> (Login dengan menggunakan NISN). Apabila belum terdaftar silahkan hubungi guru BK, bagi peserta tes yang lain silahkan pilih tombol <b>UMUM</b>.
               </p>
             </div>
 
@@ -5974,6 +6084,9 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
                 <p className="text-xs font-bold text-blue-900 mb-1">Penting untuk Siswa!</p>
                 <p className="text-[10px] text-blue-800 leading-relaxed">
                   Gunakan tombol <b>"MASUK TANPA AKUN GOOGLE"</b> apabila gagal masuk lewat ketiga tombol di atas.
+                </p>
+                <p className="text-[10px] text-blue-800 leading-relaxed mt-2">
+                  Refresh aplikasi apabila layar blank atau gagal login, tombol berupa tanda panah melingkar berada di kiri atas layar.
                 </p>
               </div>
             </div>
