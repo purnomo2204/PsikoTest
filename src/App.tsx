@@ -569,17 +569,23 @@ const TestCard = ({ test, type, onSelect, recommendation, results }: { test: any
   };
   const Icon = icons[type];
 
+  const colors = [
+    'bg-emerald-500/20', 'bg-blue-500/20', 'bg-amber-500/20', 'bg-rose-500/20', 
+    'bg-violet-500/20', 'bg-cyan-500/20', 'bg-orange-500/20', 'bg-fuchsia-500/20'
+  ];
+  const color = colors[Object.keys(TESTS).indexOf(type) % colors.length];
+
   return (
     <motion.div 
       whileHover={{ y: -2 }}
-      className="group relative bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-emerald-200 transition-all cursor-pointer overflow-hidden flex flex-col h-full"
+      className={`group relative bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-emerald-200 transition-all cursor-pointer overflow-hidden flex flex-col h-full`}
     >
-      <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity" onClick={() => onSelect(type)}>
-        <Icon className="w-16 h-16 text-emerald-600" />
+      <div className={`absolute top-0 right-0 p-3 opacity-20 transition-opacity ${color.replace('/20', '')}`} onClick={() => onSelect(type)}>
+        <Icon className="w-16 h-16 text-slate-900" />
       </div>
       <div className="relative z-10 flex-1" onClick={() => onSelect(type)}>
-        <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center mb-3 group-hover:bg-emerald-600 transition-colors">
-          <Icon className="w-5 h-5 text-emerald-600 group-hover:text-white" />
+        <div className={`w-10 h-10 ${color} rounded-lg flex items-center justify-center mb-3 transition-colors`}>
+          <Icon className={`w-5 h-5 ${color.replace('bg-', 'text-').replace('/20', '')}`} />
         </div>
         <h3 className="text-base font-bold text-slate-900 mb-1">{test.title}</h3>
         <p className="text-xs text-slate-500 leading-relaxed mb-3">{test.description}</p>
@@ -1043,6 +1049,12 @@ const TestForm = ({ type, customTest, onComplete, onCancel, isAnalyzingTest }: {
     );
   }
 
+  const colors = [
+    'bg-emerald-500/20', 'bg-blue-500/20', 'bg-amber-500/20', 'bg-rose-500/20', 
+    'bg-violet-500/20', 'bg-cyan-500/20', 'bg-orange-500/20', 'bg-fuchsia-500/20'
+  ];
+  const color = colors[Object.keys(TESTS).indexOf(type) % colors.length];
+
   return (
     <div className="max-w-xl mx-auto py-6 px-4">
       <button onClick={onCancel} className="flex items-center text-emerald-600 border border-emerald-500 hover:bg-emerald-50 px-4 py-2 rounded-xl mb-6 text-sm font-bold transition-colors w-fit">
@@ -1050,18 +1062,18 @@ const TestForm = ({ type, customTest, onComplete, onCancel, isAnalyzingTest }: {
       </button>
 
       {/* Progress Indicator */}
-      <div className="mb-6 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+      <div className={`mb-6 p-4 rounded-2xl shadow-sm flex items-center gap-4 ${color}`}>
         <div className="relative w-12 h-12 flex items-center justify-center shrink-0">
           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
             <path
-              className="text-slate-100"
+              className="text-black/10"
               strokeWidth="3"
               stroke="currentColor"
               fill="none"
               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
             />
             <path
-              className="text-emerald-500 transition-all duration-500 ease-out"
+              className={`${color.replace('bg-', 'text-').replace('/20', '')} transition-all duration-500 ease-out`}
               strokeDasharray={`${(currentIdx / test.questions.length) * 100}, 100`}
               strokeWidth="3"
               strokeLinecap="round"
@@ -1070,24 +1082,24 @@ const TestForm = ({ type, customTest, onComplete, onCancel, isAnalyzingTest }: {
               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
             />
           </svg>
-          <span className="absolute text-xs font-black text-slate-700">{Math.round((currentIdx / test.questions.length) * 100)}%</span>
+          <span className={`absolute text-xs font-black ${color.replace('bg-', 'text-').replace('/20', '')}`}>{Math.round((currentIdx / test.questions.length) * 100)}%</span>
         </div>
         <div className="flex-1">
-          <h4 className="text-sm font-bold text-slate-900 mb-1">Progres Pengerjaan</h4>
-          <p className="text-xs text-slate-500 font-medium">Telah menyelesaikan <span className="font-bold text-emerald-600">{currentIdx}</span> dari <span className="font-bold text-slate-700">{test.questions.length}</span> pertanyaan.</p>
+          <h4 className={`text-sm font-bold ${color.replace('bg-', 'text-').replace('/20', '')} mb-1`}>Progres Pengerjaan</h4>
+          <p className={`text-xs ${color.replace('bg-', 'text-').replace('/20', '')}/90 font-medium`}>Telah menyelesaikan <span className="font-bold">{currentIdx}</span> dari <span className="font-bold">{test.questions.length}</span> pertanyaan.</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+      <div className={`rounded-2xl shadow-lg border border-slate-100 overflow-hidden ${color}`}>
         <div className="p-6 sm:p-8">
           {type === 'wartegg' ? (
             <WarteggTest onComplete={onComplete} />
           ) : (
             <>
-              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-3 block">
+              <span className={`text-[10px] font-bold ${color.replace('bg-', 'text-').replace('/20', '')} uppercase tracking-widest mb-3 block`}>
                 Pertanyaan {currentIdx + 1}
               </span>
-              <h2 className="text-xl font-bold text-slate-900 mb-6 leading-tight">
+              <h2 className={`text-xl font-bold ${color.replace('bg-', 'text-').replace('/20', '')} mb-6 leading-tight`}>
                 {test.questions[currentIdx].text}
               </h2>
 
@@ -1096,11 +1108,11 @@ const TestForm = ({ type, customTest, onComplete, onCancel, isAnalyzingTest }: {
                   <button
                     key={i}
                     onClick={() => handleAnswer(test.questions[currentIdx].id, opt.value, opt.score)}
-                    className="w-full text-left p-4 rounded-xl border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50 transition-all group flex items-center justify-between"
+                    className={`w-full text-left p-4 rounded-xl border-2 border-white bg-white/10 hover:bg-white/30 transition-all group flex items-center justify-between ${color.replace('bg-', 'text-').replace('/20', '')}`}
                   >
-                    <span className="text-sm text-slate-700 font-medium group-hover:text-emerald-900">{opt.text}</span>
-                    <div className="w-5 h-5 rounded-full border-2 border-slate-200 group-hover:border-emerald-600 flex items-center justify-center">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <span className="text-sm text-slate-900 font-bold group-hover:text-slate-950">{opt.text}</span>
+                    <div className="w-5 h-5 rounded-full border-2 border-white/50 group-hover:border-white flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-white opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                   </button>
                 ))}
@@ -2094,32 +2106,32 @@ const GuestRecap = ({ results, teacherSettings, classes, onEdit, onDelete }: {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
           <div style={{ transform: 'rotateX(180deg)' }}>
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse border border-slate-200">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">No</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Nama Peserta Umum</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Jenjang</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Nama Sekolah/ Alamat</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Status Tes</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Hasil Terakhir</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest border-r border-slate-200">No</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest border-r border-slate-200">Nama Peserta Umum</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest border-r border-slate-200">Jenjang</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest border-r border-slate-200">Nama Sekolah/ Alamat</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest border-r border-slate-200">Status Tes</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest border-r border-slate-200">Hasil Terakhir</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {guestSummary.map((g, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 text-xs font-bold text-slate-400">{idx + 1}</td>
-                  <td className="px-6 py-4">
+                <tr key={idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-200">
+                  <td className="px-6 py-4 text-xs font-bold text-slate-400 border-r border-slate-200">{idx + 1}</td>
+                  <td className="px-6 py-4 border-r border-slate-200">
                     <span className="text-sm font-black text-slate-900">{g.name}</span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 border-r border-slate-200">
                     <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase">{g.tests[0]?.studentClass || 'UMUM'}</span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 border-r border-slate-200">
                     <span className="text-xs font-medium text-slate-600">{g.tests[0]?.studentNisn || '-'}</span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 border-r border-slate-200">
                     <div className="flex flex-col gap-1">
                       {g.tests.length > 0 ? (
                         g.tests.map((t, i) => (
@@ -6002,78 +6014,16 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
 
           <div className="grid grid-cols-1 gap-3">
             <button 
-              onClick={async () => {
-                const timeout = setTimeout(() => {
-                  if (isLoggingIn) {
-                    setIsLoggingIn(false);
-                    showToast("Koneksi ke server lambat. Silakan coba lagi atau gunakan browser lain.", "error");
-                  }
-                }, 10000);
-
-                try {
-                  setIsLoggingIn(true);
-                  setInitialIdentityStep('registered');
-                  await signInAsGuest();
-                  clearTimeout(timeout);
-                } catch (error: any) {
-                  clearTimeout(timeout);
-                  let errorMsg = error.message || "Gagal masuk. Pastikan Anonymous Auth aktif.";
-                  showToast(errorMsg, 'error');
-                  setIsLoggingIn(false);
-                }
-              }}
-              disabled={isLoggingIn}
-              className="w-full bg-white text-emerald-600 border-2 border-emerald-600 py-4 rounded-2xl font-bold hover:bg-emerald-50 transition-all flex items-center justify-center gap-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {isLoggingIn ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-emerald-600 border-t-transparent" />
-              ) : (
-                <>
-                  <GraduationCap className="w-5 h-5" /> LOGIN SISWA (NISN & NAMA)
-                </>
-              )}
-            </button>
-
-            <button 
-              onClick={async () => {
-                const timeout = setTimeout(() => {
-                  if (isLoggingIn) {
-                    setIsLoggingIn(false);
-                    showToast("Koneksi ke server lambat. Silakan coba lagi.", "error");
-                  }
-                }, 10000);
-
-                try {
-                  setIsLoggingIn(true);
-                  setInitialIdentityStep('guest');
-                  await signInAsGuest();
-                  clearTimeout(timeout);
-                } catch (error: any) {
-                  clearTimeout(timeout);
-                  let errorMsg = error.message || "Gagal masuk sebagai tamu. Pastikan Anonymous Auth aktif.";
-                  showToast(errorMsg, 'error');
-                  setIsLoggingIn(false);
-                }
-              }}
-              disabled={isLoggingIn}
-              className="w-full bg-white text-slate-600 border-2 border-slate-200 py-4 rounded-2xl font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {isLoggingIn ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-400 border-t-transparent" />
-              ) : (
-                <>
-                  <Users className="w-5 h-5" /> LOGIN PESERTA UMUM
-                </>
-              )}
-            </button>
-
-            <div className="h-px bg-slate-100 my-2" />
-
-            <button 
               onClick={() => setShowEmergencyMenu(true)}
               className="w-full text-emerald-600 text-xs font-black hover:bg-emerald-50 transition-all py-3 border-2 border-emerald-600 rounded-xl mt-2 flex items-center justify-center gap-2 shadow-sm"
             >
               <AlertCircle className="w-4 h-4" /> MASUK TANPA AKUN GOOGLE
+            </button>
+            <button 
+              onClick={() => setShowEmergencyMenu(false)}
+              className="w-full text-slate-500 text-xs font-black hover:bg-slate-100 transition-all py-3 border-2 border-slate-200 rounded-xl mt-2 flex items-center justify-center gap-2 shadow-sm"
+            >
+              <X className="w-4 h-4" /> BATAL
             </button>
           </div>
 
@@ -6083,7 +6033,7 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
               <div>
                 <p className="text-xs font-bold text-blue-900 mb-1">Penting untuk Siswa!</p>
                 <p className="text-[10px] text-blue-800 leading-relaxed">
-                  Gunakan tombol <b>"MASUK TANPA AKUN GOOGLE"</b> apabila gagal masuk lewat ketiga tombol di atas.
+                  Gunakan tombol <b>"MASUK TANPA AKUN GOOGLE"</b> apabila gagal masuk lewat tombol <b>"LOGIN DENGAN GOOGLE"</b>.
                 </p>
                 <p className="text-[10px] text-blue-800 leading-relaxed mt-2">
                   Refresh aplikasi apabila layar blank atau gagal login, tombol berupa tanda panah melingkar berada di kiri atas layar.
