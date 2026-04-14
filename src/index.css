@@ -31,3 +31,25 @@
     border: 1px solid #e2e8f0 !important;
   }
 }
+
+/* Metallic Green Scrollbar for Tables */
+.overflow-x-auto::-webkit-scrollbar {
+  height: 10px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #34d399 0%, #059669 50%, #047857 100%);
+  border-radius: 8px;
+  border: 2px solid #f8fafc;
+  box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.5);
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #10b981 0%, #047857 50%, #064e3b 100%);
+}

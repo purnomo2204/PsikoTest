@@ -328,7 +328,17 @@ export const TESTS: Record<TestType, TestData> = {
       { id: "iq37", text: "Apa planet terdekat dari Matahari?", options: [{ text: "Merkurius", value: "verbal", score: 2 }, { text: "Venus", value: "verbal", score: 0 }, { text: "Mars", value: "verbal", score: 0 }] },
       { id: "iq38", text: "Manakah yang merupakan hewan mamalia yang hidup di air?", options: [{ text: "Paus", value: "perceptual", score: 2 }, { text: "Hiu", value: "perceptual", score: 0 }, { text: "Kura-kura", value: "perceptual", score: 0 }] },
       { id: "iq39", text: "Jika 1 jam = 60 menit, berapa menit dalam 1,5 jam?", options: [{ text: "90", value: "working_memory", score: 2 }, { text: "75", value: "working_memory", score: 0 }, { text: "80", value: "working_memory", score: 0 }] },
-      { id: "iq40", text: "Apa nama galaksi tempat Bumi berada?", options: [{ text: "Bima Sakti", value: "verbal", score: 2 }, { text: "Andromeda", value: "verbal", score: 0 }, { text: "Sombrero", value: "verbal", score: 0 }] }
+      { id: "iq40", text: "Apa nama galaksi tempat Bumi berada?", options: [{ text: "Bima Sakti", value: "verbal", score: 2 }, { text: "Andromeda", value: "verbal", score: 0 }, { text: "Sombrero", value: "verbal", score: 0 }] },
+      { id: "iq41", text: "Cari angka yang sama: 45, 67, 45, 89", options: [{ text: "45", value: "processing_speed", score: 2 }, { text: "67", value: "processing_speed", score: 0 }, { text: "89", value: "processing_speed", score: 0 }] },
+      { id: "iq42", text: "Manakah simbol yang berbeda? #, #, $, #", options: [{ text: "$", value: "processing_speed", score: 2 }, { text: "#", value: "processing_speed", score: 0 }] },
+      { id: "iq43", text: "Temukan pasangan yang cocok: (A-1), (B-2), (C-?)", options: [{ text: "3", value: "processing_speed", score: 2 }, { text: "4", value: "processing_speed", score: 0 }, { text: "5", value: "processing_speed", score: 0 }] },
+      { id: "iq44", text: "Urutkan dengan cepat: B, A, C, D", options: [{ text: "A, B, C, D", value: "processing_speed", score: 2 }, { text: "B, A, C, D", value: "processing_speed", score: 0 }] },
+      { id: "iq45", text: "Manakah yang merupakan hasil dari 5 + 5 + 5?", options: [{ text: "15", value: "processing_speed", score: 2 }, { text: "10", value: "processing_speed", score: 0 }, { text: "20", value: "processing_speed", score: 0 }] },
+      { id: "iq46", text: "Identifikasi warna yang disebutkan: 'MERAH' (ditulis dengan warna biru)", options: [{ text: "Merah", value: "processing_speed", score: 2 }, { text: "Biru", value: "processing_speed", score: 0 }] },
+      { id: "iq47", text: "Pilih kata yang paling pendek: Gajah, Semut, Jerapah", options: [{ text: "Semut", value: "processing_speed", score: 2 }, { text: "Gajah", value: "processing_speed", score: 0 }] },
+      { id: "iq48", text: "Manakah angka yang paling besar? 102, 120, 201", options: [{ text: "201", value: "processing_speed", score: 2 }, { text: "120", value: "processing_speed", score: 0 }] },
+      { id: "iq49", text: "Temukan huruf yang hilang: P, Q, R, ?, T", options: [{ text: "S", value: "processing_speed", score: 2 }, { text: "U", value: "processing_speed", score: 0 }] },
+      { id: "iq50", text: "Manakah yang merupakan bentuk lingkaran?", options: [{ text: "O", value: "processing_speed", score: 2 }, { text: "X", value: "processing_speed", score: 0 }] }
     ]
   },
   wartegg: {
@@ -398,8 +408,8 @@ export const getShortResult = (testType: TestType, scores: Record<string, number
     }
     case 'iq_wais': {
       const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-      // Simple IQ estimation: (score/80 * 60) + 80
-      const estimatedIQ = Math.round((totalScore / 80) * 60 + 80);
+      // Simple IQ estimation: (score/100 * 60) + 80 (adjusted for 50 questions, max score 100)
+      const estimatedIQ = Math.round((totalScore / 100) * 60 + 80);
       return `IQ: ${estimatedIQ}`;
     }
     case 'wartegg': {
@@ -610,7 +620,7 @@ ${advice}`;
 
     case 'iq_wais': {
       const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-      const estimatedIQ = Math.round((totalScore / 80) * 60 + 80);
+      const estimatedIQ = Math.round((totalScore / 100) * 60 + 80);
       
       let category = "";
       if (estimatedIQ >= 130) category = "Sangat Superior";
@@ -623,6 +633,7 @@ ${advice}`;
       const verbalScore = Object.entries(scores).filter(([k]) => k === 'verbal').reduce((a, b) => a + b[1], 0);
       const perceptualScore = Object.entries(scores).filter(([k]) => k === 'perceptual').reduce((a, b) => a + b[1], 0);
       const workingMemoryScore = Object.entries(scores).filter(([k]) => k === 'working_memory').reduce((a, b) => a + b[1], 0);
+      const processingSpeedScore = Object.entries(scores).filter(([k]) => k === 'processing_speed').reduce((a, b) => a + b[1], 0);
 
       return `### Hasil Analisis: Tes IQ WAIS
 Estimasi IQ Anda: **${estimatedIQ}**
@@ -632,6 +643,7 @@ Kategori: **${category}**
 - **Pemahaman Verbal:** ${Math.round((verbalScore / 30) * 100)}%
 - **Penalaran Perseptual:** ${Math.round((perceptualScore / 24) * 100)}%
 - **Memori Kerja:** ${Math.round((workingMemoryScore / 26) * 100)}%
+- **Kecepatan Pemrosesan:** ${Math.round((processingSpeedScore / 20) * 100)}%
 
 **Interpretasi:**
 Hasil ini menunjukkan kapasitas kognitif umum Anda dalam berbagai domain. Skor ${estimatedIQ} berada dalam kategori **${category}**, yang mencerminkan kemampuan Anda dalam memproses informasi, memecahkan masalah, dan menggunakan logika verbal.

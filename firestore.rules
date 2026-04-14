@@ -44,7 +44,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email.lower() == "purnomowiwit@gmail.com" && request.auth.token.email_verified == true));
+          (request.auth.token.get('email', '').lower() == "purnomowiwit@gmail.com" && request.auth.token.get('email_verified', false) == true));
     }
 
     function isTeacher() {
@@ -64,41 +64,44 @@ service cloud.firestore {
       return data.keys().hasAll(['studentId', 'studentName', 'testType', 'scores', 'analysis', 'timestamp']) &&
              data.studentId is string &&
              data.studentName is string && data.studentName.size() > 0 && data.studentName.size() < 100 &&
-             data.testType in ['learning_style', 'multiple_intelligences', 'personality', 'aptitude_interest', 'school_major', 'anxiety'] &&
+             data.testType in ['learning_style', 'multiple_intelligences', 'personality', 'aptitude_interest', 'school_major', 'anxiety', 'iq_wais', 'wartegg'] &&
              data.scores is map &&
              data.analysis is string &&
              (data.timestamp is timestamp || data.timestamp == request.time);
     }
 
+    function isEmergencyUser(uid) {
+      return uid is string && uid.matches("^local_.*");
+    }
+
     match /users/{uid} {
-      allow read: if isAuthenticated();
-      allow create: if isOwner(uid) && isValidUser(request.resource.data) && (request.resource.data.role == 'student' || (request.resource.data.role == 'admin' && request.resource.data.email.lower() == "purnomowiwit@gmail.com"));
-      allow update: if (isOwner(uid) && request.resource.data.role == resource.data.role) || isAdmin();
+      allow read: if true;
+      allow create, update: if isEmergencyUser(uid) || isOwner(uid) || isAdmin();
     }
 
     match /test_results/{resultId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.studentId && isValidTestResult(request.resource.data);
+      allow read: if true;
+      allow create: if isEmergencyUser(request.resource.data.studentId) || (isAuthenticated() && request.auth.uid == request.resource.data.studentId) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /classes/{classId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create, update, delete: if isAdmin() || isTeacher();
     }
 
     match /students/{studentId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create, update, delete: if isAdmin() || isTeacher();
     }
 
     match /teacher_settings/{uid} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isOwner(uid) && (isAdmin() || isTeacher());
     }
 
     match /custom_tests/{testId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create, update, delete: if isAdmin() || isTeacher();
     }
   }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db, signInWithGoogle, logout } from './firebase';
+import { auth, db, signInWithGoogle, logout, signInAsGuest } from './firebase';
 import { onAuthStateChanged, updateEmail } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, onSnapshot, query, where, addDoc, serverTimestamp, updateDoc, deleteDoc, orderBy } from 'firebase/firestore';
@@ -59,7 +59,7 @@ const handleDownloadPDF = (result: TestResult, teacherSettings: TeacherSettings 
     currentY += 7;
     doc.text(`NISN: ${result.studentNisn || '-'}`, 20, currentY);
     currentY += 7;
-    doc.text(`Kelas: ${result.studentClass || 'Umum'}`, 20, currentY);
+    doc.text(`Kelas: ${result.studentClass || 'Peserta Umum'}`, 20, currentY);
     currentY += 7;
     doc.text(`Tanggal Tes: ${new Date(result.timestamp?.seconds * 1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, currentY);
     currentY += 11;
@@ -150,6 +150,180 @@ const handleDownloadPDF = (result: TestResult, teacherSettings: TeacherSettings 
     
     doc.save(`Hasil_${result.testType}_${result.studentName.replace(/\s+/g, '_')}.pdf`);
   };
+
+export const handleDownloadDetailedReport = (student: any, allResults: TestResult[], teacherSettings: TeacherSettings | null) => {
+  const doc = new jsPDF();
+  const isUmum = student.className?.toLowerCase() === 'umum' || student.role === 'guest';
+  
+  const studentResults = allResults.filter(r => r.studentId === student.uid || (r.studentName === student.name && r.studentClass === student.className));
+  
+  const targetTests: TestType[] = [
+    'learning_style',
+    'multiple_intelligences',
+    'personality',
+    'aptitude_interest',
+    'school_major',
+    'anxiety'
+  ];
+
+  let currentY = 15;
+
+  if (!isUmum) {
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text(teacherSettings?.pemdaName?.toUpperCase() || "PEMERINTAH PROVINSI / KOTA", 105, currentY, { align: 'center' });
+    currentY += 7;
+    doc.text(teacherSettings?.dinasName?.toUpperCase() || "DINAS PENDIDIKAN", 105, currentY, { align: 'center' });
+    currentY += 8;
+    doc.setFontSize(14);
+    doc.text(teacherSettings?.schoolName?.toUpperCase() || "NAMA SEKOLAH ANDA DISINI", 105, currentY, { align: 'center' });
+    currentY += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(teacherSettings?.schoolAddress || "Alamat Lengkap Sekolah, No. Telp, Website, Email", 105, currentY, { align: 'center' });
+    currentY += 4;
+    doc.line(20, currentY, 190, currentY);
+    currentY += 1;
+    doc.line(20, currentY, 190, currentY);
+    currentY += 14;
+  } else {
+    currentY = 25;
+  }
+
+  doc.setFontSize(16);
+  doc.setTextColor(79, 70, 229);
+  doc.setFont("helvetica", "bold");
+  doc.text("LAPORAN HASIL TES PSIKOLOGI INDIVIDUAL", 105, currentY, { align: 'center' });
+  currentY += 15;
+  
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Nama Siswa: ${student.name}`, 20, currentY);
+  currentY += 7;
+  doc.text(`NISN: ${student.nisn || '-'}`, 20, currentY);
+  currentY += 7;
+  doc.text(`Kelas: ${student.className || 'Peserta Umum'}`, 20, currentY);
+  currentY += 7;
+  doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, currentY);
+  currentY += 15;
+
+  const printMarkdown = (text: string) => {
+    const lines = text.split('\n');
+    for (let line of lines) {
+      if (currentY > 270) {
+        doc.addPage();
+        currentY = 20;
+      }
+      
+      if (line.startsWith('### ')) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.setTextColor(15, 23, 42);
+        const textToPrint = line.replace('### ', '');
+        const splitText = doc.splitTextToSize(textToPrint, 170);
+        doc.text(splitText, 20, currentY);
+        currentY += (splitText.length * 6) + 2;
+      } else if (line.startsWith('**') && line.endsWith('**')) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(30, 41, 59);
+        const textToPrint = line.replace(/\*\*/g, '');
+        const splitText = doc.splitTextToSize(textToPrint, 170);
+        doc.text(splitText, 20, currentY);
+        currentY += (splitText.length * 5) + 1;
+      } else if (line.startsWith('- ')) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(71, 85, 105);
+        const textToPrint = line.replace('- ', '• ');
+        const cleanText = textToPrint.replace(/\*\*/g, '');
+        const splitText = doc.splitTextToSize(cleanText, 165);
+        doc.text(splitText, 25, currentY);
+        currentY += (splitText.length * 5) + 1;
+      } else if (line.trim() !== '') {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(71, 85, 105);
+        const cleanText = line.replace(/\*\*/g, '');
+        const splitText = doc.splitTextToSize(cleanText, 170);
+        doc.text(splitText, 20, currentY);
+        currentY += (splitText.length * 5) + 1;
+      } else {
+        currentY += 3;
+      }
+    }
+  };
+
+  targetTests.forEach(testType => {
+    const testsOfType = studentResults.filter(t => t.testType === testType).sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+    const latestTest = testsOfType.length > 0 ? testsOfType[0] : null;
+
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(5, 150, 105);
+    doc.text(TESTS[testType].title.toUpperCase(), 20, currentY);
+    currentY += 8;
+
+    if (latestTest) {
+      const shortResult = getShortResult(testType, latestTest.scores);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Hasil Utama: ${shortResult}`, 20, currentY);
+      currentY += 8;
+
+      const cleanAnalysis = latestTest.analysis.replace(/<\/?[^>]+(>|$)/g, "").replace(/Penjelasan lebih lanjut tentang hasil tes bisa dibaca pada lampiran surat keterangan ini\./g, '');
+      printMarkdown(cleanAnalysis);
+      currentY += 10;
+    } else {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(10);
+      doc.setTextColor(148, 163, 184);
+      doc.text("Siswa belum mengikuti tes ini.", 20, currentY);
+      currentY += 15;
+    }
+  });
+
+  if (currentY > 220) {
+    doc.addPage();
+    currentY = 20;
+  }
+
+  const sigY = currentY + 20;
+  const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Dicetak pada: ${today}`, 20, sigY - 10);
+  
+  if (!isUmum) {
+    doc.text("Mengetahui,", 160, sigY, { align: 'center' });
+    doc.text("Guru Bimbingan Konseling,", 160, sigY + 5, { align: 'center' });
+    
+    doc.setFont("helvetica", "bold");
+    doc.text(teacherSettings?.name || "(....................................)", 160, sigY + 30, { align: 'center' });
+    doc.setFont("helvetica", "normal");
+    doc.text(`NIP. ${teacherSettings?.nip || "...................................."}`, 160, sigY + 35, { align: 'center' });
+  }
+
+  const pageCount = doc.getNumberOfPages();
+  for(let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Dicetak melalui PsikoTest - Halaman ${i} dari ${pageCount}`, 105, 285, { align: 'center' });
+  }
+
+  doc.save(`Laporan_Detail_${student.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
 import { 
   LayoutDashboard, 
   ClipboardCheck, 
@@ -176,6 +350,7 @@ import {
   Save,
   X,
   Info,
+  AlertCircle,
   Share2,
   FileText,
   Sparkles,
@@ -185,11 +360,13 @@ import {
   PieChart as PieChartIcon,
   Loader2,
   Monitor,
+  UserCircle,
   Eye,
   EyeOff,
   Palette,
   Eraser,
-  Undo2
+  Undo2,
+  Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -261,7 +438,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     operationType,
     path
   }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  // console.error('Firestore Error: ', JSON.stringify(errInfo)); // Removed to reduce console noise
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -337,9 +514,12 @@ const Navbar = ({ user, onLogout, onBack, setView, view }: {
             <div className="bg-emerald-600 p-2.5 rounded-xl shadow-lg shadow-emerald-200">
               <Brain className="w-8 h-8 text-white" />
             </div>
-            <span className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-600 tracking-tighter">
-              PsikoTest
-            </span>
+            <div className="flex flex-col">
+              <span className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-600 tracking-tighter leading-none">
+                PsikoTest
+              </span>
+              <img src="https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9" alt="Dutatama Logo" className="h-5 w-auto mt-1 opacity-90" referrerPolicy="no-referrer" />
+            </div>
           </div>
           
           {user && (
@@ -347,7 +527,7 @@ const Navbar = ({ user, onLogout, onBack, setView, view }: {
               {(user.role === 'admin' || user.role === 'teacher' || user.email.toLowerCase() === "purnomowiwit@gmail.com") && (
                 <button 
                   onClick={() => setView(isAdminView ? 'dashboard' : 'admin')}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 rounded-xl font-black text-sm hover:bg-emerald-100 transition-all shadow-sm border border-emerald-100"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 rounded-xl font-black text-sm hover:bg-emerald-100 transition-all shadow-sm border border-emerald-100 cursor-pointer"
                 >
                   {isAdminView ? <BookOpen className="w-4 h-4" /> : <LayoutDashboard className="w-4 h-4" />}
                   {isAdminView ? 'MENU SISWA' : 'MENU ADMIN'}
@@ -363,9 +543,10 @@ const Navbar = ({ user, onLogout, onBack, setView, view }: {
               </div>
               <button 
                 onClick={onLogout}
-                className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+                className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100 cursor-pointer font-bold text-xs"
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-4 h-4" />
+                <span className="hidden md:inline">KELUAR APLIKASI</span>
               </button>
             </div>
           )}
@@ -1181,7 +1362,7 @@ Berikan penjelasan yang lebih mendalam, personal, dan memotivasi untuk siswa ini
     doc.setFont("helvetica", "normal");
     doc.text(`Nama Siswa: ${result.studentName}`, 20, currentY);
     currentY += 7;
-    doc.text(`Kelas: ${result.studentClass || 'Umum'}`, 20, currentY);
+    doc.text(`Kelas: ${result.studentClass || 'Peserta Umum'}`, 20, currentY);
     currentY += 7;
     doc.text(`Tanggal Tes: ${new Date(result.timestamp?.seconds * 1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, currentY);
     currentY += 16;
@@ -1350,9 +1531,9 @@ Berikan penjelasan yang lebih mendalam, personal, dan memotivasi untuk siswa ini
           <div className="flex flex-row flex-wrap sm:flex-nowrap gap-2 pt-4">
             <button 
               onClick={onBack}
-              className="flex-1 bg-emerald-600 text-white py-2.5 px-2 rounded-lg font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 text-xs sm:text-sm whitespace-nowrap"
+              className="flex-1 bg-emerald-600 text-white py-2.5 px-2 rounded-lg font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 text-xs sm:text-sm whitespace-nowrap uppercase"
             >
-              Kembali
+              Kembali Ke Menu
             </button>
             <button 
               onClick={handleShare}
@@ -1747,7 +1928,7 @@ const GuestRecap = ({ results, teacherSettings, classes, onEdit, onDelete }: {
 
   const handleDownloadPDF = () => {
     const doc = new jsPDF('l', 'mm', 'a4');
-    const title = "REKAPITULASI HASIL TES PSIKOLOGI TAMU (UMUM)";
+    const title = "REKAPITULASI HASIL TES PSIKOLOGI PESERTA UMUM";
     
     // Kop Surat
     doc.setFontSize(14);
@@ -1780,7 +1961,7 @@ const GuestRecap = ({ results, teacherSettings, classes, onEdit, onDelete }: {
 
     autoTable(doc, {
       startY: 60,
-      head: [['No', 'Nama Tamu', 'Jenjang', 'Asal Sekolah', 'Hasil Tes']],
+      head: [['No', 'Nama Peserta Umum', 'Jenjang', 'Asal Sekolah', 'Hasil Tes']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' }, // Emerald color
@@ -1815,13 +1996,13 @@ const GuestRecap = ({ results, teacherSettings, classes, onEdit, onDelete }: {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex-1">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-black text-slate-900">Rekap Hasil Tamu</h3>
+            <h3 className="text-xl font-black text-slate-900">Rekap Peserta Umum</h3>
             <div className="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 flex items-center gap-3">
-              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">Total Tamu</span>
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">Total Peserta Umum</span>
               <span className="text-xl font-black text-emerald-700">{uniqueGuestNames.length}</span>
             </div>
           </div>
-          <p className="text-sm text-slate-500 font-medium">Ringkasan hasil tes psikologi peserta umum/tamu.</p>
+          <p className="text-sm text-slate-500 font-medium">Ringkasan hasil tes psikologi peserta umum.</p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
@@ -1847,14 +2028,15 @@ const GuestRecap = ({ results, teacherSettings, classes, onEdit, onDelete }: {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+          <div style={{ transform: 'rotateX(180deg)' }}>
+            <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">No</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Nama Tamu</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Nama Peserta Umum</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Jenjang</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Asal Sekolah</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Nama Sekolah/ Alamat</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Status Tes</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Hasil Terakhir</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Aksi</th>
@@ -1874,11 +2056,11 @@ const GuestRecap = ({ results, teacherSettings, classes, onEdit, onDelete }: {
                     <span className="text-xs font-medium text-slate-600">{g.tests[0]?.studentNisn || '-'}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-col gap-1">
                       {g.tests.length > 0 ? (
                         g.tests.map((t, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[9px] font-black border border-emerald-100 uppercase">
-                            {TESTS[t.testType]?.title.split(' ')[0] || t.testType}
+                          <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[9px] font-black border border-emerald-100 uppercase w-fit">
+                            {TESTS[t.testType]?.title || t.testType}
                           </span>
                         ))
                       ) : (
@@ -1887,27 +2069,31 @@ const GuestRecap = ({ results, teacherSettings, classes, onEdit, onDelete }: {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    {g.tests.length > 0 ? (
-                      <div className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100">
-                        {getShortResult(g.tests[g.tests.length-1].testType, g.tests[g.tests.length-1].scores)}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-300">-</span>
-                    )}
+                    <div className="flex flex-col gap-1">
+                      {g.tests.length > 0 ? (
+                        g.tests.map((t, i) => (
+                          <div key={i} className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 w-fit">
+                            {getShortResult(t.testType, t.scores)}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-300">-</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button 
                         onClick={() => onEdit?.(g.name, g.tests)}
                         className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                        title="Edit Data Tamu"
+                        title="Edit Data Peserta Umum"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button 
                         onClick={() => onDelete?.(g.name, g.tests)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Hapus Semua Hasil Tes Tamu"
+                        title="Hapus Semua Hasil Tes Peserta Umum"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1918,12 +2104,13 @@ const GuestRecap = ({ results, teacherSettings, classes, onEdit, onDelete }: {
               {guestSummary.length === 0 && (
                 <tr>
                   <td colSpan={5} className="p-12 text-center text-slate-400 font-bold italic">
-                    Belum ada data rekapitulasi tamu.
+                    Belum ada data rekapitulasi peserta umum.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>
@@ -2080,8 +2267,9 @@ const TestRecap = ({ results, classes, students, teacherSettings, onEdit, onDele
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+          <div style={{ transform: 'rotateX(180deg)' }}>
+            <table className="w-full text-left">
             <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-widest font-bold">
               <tr>
                 <th className="px-6 py-4">No</th>
@@ -2107,11 +2295,11 @@ const TestRecap = ({ results, classes, students, teacherSettings, onEdit, onDele
                     <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase">{s.className}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-col gap-1">
                       {s.tests.length > 0 ? (
                         s.tests.map((t, i) => (
-                          <span key={i} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[9px] font-bold border border-emerald-100">
-                            {TESTS[t.testType]?.title.split(' ')[0] || t.testType}
+                          <span key={i} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[9px] font-bold border border-emerald-100 w-fit">
+                            {TESTS[t.testType]?.title || t.testType}
                           </span>
                         ))
                       ) : (
@@ -2120,13 +2308,17 @@ const TestRecap = ({ results, classes, students, teacherSettings, onEdit, onDele
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    {s.tests.length > 0 ? (
-                      <div className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100">
-                        {getShortResult(s.tests[s.tests.length-1].testType, s.tests[s.tests.length-1].scores)}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-300">-</span>
-                    )}
+                    <div className="flex flex-col gap-1">
+                      {s.tests.length > 0 ? (
+                        s.tests.map((t, i) => (
+                          <div key={i} className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 w-fit">
+                            {getShortResult(t.testType, t.scores)}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-300">-</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -2150,6 +2342,91 @@ const TestRecap = ({ results, classes, students, teacherSettings, onEdit, onDele
               ))}
             </tbody>
           </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ManajemenTamu = ({ users, classes }: { users: any[], classes: ClassInfo[] }) => {
+  const [search, setSearch] = useState('');
+  const registeredClassNames = classes.map(c => c.name);
+  
+  const guestUsers = users.filter(u => u.role === 'student' && !registeredClassNames.includes(u.className));
+  
+  const filteredGuests = guestUsers.filter(g => 
+    (g.name && g.name.toLowerCase().includes(search.toLowerCase())) ||
+    (g.className && g.className.toLowerCase().includes(search.toLowerCase())) ||
+    (g.nisn && g.nisn.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div>
+          <h3 className="text-xl font-bold text-slate-900">Data Peserta Umum</h3>
+          <p className="text-sm text-slate-500">Daftar peserta yang mendaftar melalui jalur UMUM.</p>
+        </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <input 
+              type="text"
+              placeholder="Cari nama, jenjang, asal..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-emerald-600 outline-none w-full appearance-none"
+            />
+          </div>
+          <div className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2 min-w-[100px]">
+            <Users className="w-3.5 h-3.5 text-slate-400" />
+            <div className="flex flex-col">
+              <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">TOTAL PESERTA UMUM</span>
+              <span className="text-xs font-bold text-emerald-600 leading-none mt-0.5">{filteredGuests.length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+          <div style={{ transform: 'rotateX(180deg)' }}>
+            <table className="w-full text-left min-w-[600px]">
+            <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-widest font-bold">
+              <tr>
+                <th className="px-6 py-4 whitespace-nowrap">No</th>
+                <th className="px-6 py-4 whitespace-nowrap">Nama Peserta</th>
+                <th className="px-6 py-4 whitespace-nowrap">Jenjang</th>
+                <th className="px-6 py-4 whitespace-nowrap">Nama Sekolah/ Alamat</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredGuests.length > 0 ? (
+                filteredGuests.map((g, idx) => (
+                  <tr key={g.id || idx} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">{idx + 1}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-bold text-slate-900">{g.name || '-'}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase">{g.className || 'UMUM'}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                      {g.nisn || '-'}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-slate-400 text-sm">
+                    Tidak ada data peserta umum ditemukan.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          </div>
         </div>
       </div>
     </div>
@@ -2238,8 +2515,9 @@ const MonitorSiswa = ({ results, students, classes, setTestResult, setEditingStu
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[800px]">
+        <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+          <div style={{ transform: 'rotateX(180deg)' }}>
+            <table className="w-full text-left min-w-[800px]">
             <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-widest font-bold">
               <tr>
                 <th className="px-6 py-4 whitespace-nowrap">No</th>
@@ -2247,6 +2525,7 @@ const MonitorSiswa = ({ results, students, classes, setTestResult, setEditingStu
                 <th className="px-6 py-4 whitespace-nowrap">Nama Siswa</th>
                 <th className="px-6 py-4 whitespace-nowrap">Kelas</th>
                 <th className="px-6 py-4 text-center whitespace-nowrap">Tes Psikologi</th>
+                <th className="px-6 py-4 text-center whitespace-nowrap">Jumlah</th>
                 <th className="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
               </tr>
             </thead>
@@ -2281,6 +2560,16 @@ const MonitorSiswa = ({ results, students, classes, setTestResult, setEditingStu
                           );
                         })}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-center whitespace-nowrap">
+                      <span className={cn(
+                        "text-xs font-bold px-2 py-1 rounded-lg border transition-all",
+                        completedTests.size > 0 
+                          ? "text-amber-700 bg-amber-50 border-[#FFC30B] shadow-sm shadow-amber-100" 
+                          : "text-slate-700 bg-slate-100 border-transparent"
+                      )}>
+                        {completedTests.size}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
@@ -2331,6 +2620,7 @@ const MonitorSiswa = ({ results, students, classes, setTestResult, setEditingStu
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>
@@ -2639,8 +2929,9 @@ const HasilTesSummary = ({ results, classes, students, teacherSettings, onEdit, 
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[1200px] border-collapse">
+        <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+          <div style={{ transform: 'rotateX(180deg)' }}>
+            <table className="w-full text-left min-w-[1200px] border-collapse">
             <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-widest font-bold border-b border-slate-200">
               <tr>
                 <th rowSpan={2} className="px-4 py-3 border-r border-slate-200 text-center align-middle">No</th>
@@ -2683,6 +2974,13 @@ const HasilTesSummary = ({ results, classes, students, teacherSettings, onEdit, 
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button 
+                        onClick={() => handleDownloadDetailedReport(s, results, teacherSettings)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Cetak Laporan Detail Individual"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+                      <button 
                         onClick={() => onEdit?.(s)}
                         className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                         title="Edit Data Siswa"
@@ -2709,13 +3007,246 @@ const HasilTesSummary = ({ results, classes, students, teacherSettings, onEdit, 
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-const AdminDashboard = ({ results, classes, students, teacherSettings, user, setView, showToast, setTestResult }: { results: TestResult[], classes: ClassInfo[], students: StudentData[], teacherSettings: TeacherSettings | null, user: UserProfile, setView: (v: any) => void, showToast: (m: string, t?: 'success' | 'error' | 'info') => void, setTestResult: (r: TestResult | null) => void }) => {
+const HasilTesTamu = ({ results, classes, users, teacherSettings, onDelete }: { 
+  results: TestResult[], 
+  classes: ClassInfo[], 
+  users: any[], 
+  teacherSettings: TeacherSettings | null,
+  onDelete?: (user: any) => void
+}) => {
+  const registeredClassNames = classes.map(c => c.name);
+  const guestUsers = users.filter(u => u.role === 'student' && !registeredClassNames.includes(u.className));
+  const testTypes = Object.keys(TESTS) as TestType[];
+
+  const guestResults = guestUsers.map(guest => {
+    const guestTests = results.filter(r => r.studentId === guest.uid || (r.studentName === guest.name && r.studentClass === guest.className));
+    
+    const latestTests: Record<string, string> = {};
+    testTypes.forEach(type => {
+      const testsOfType = guestTests.filter(t => t.testType === type).sort((a, b) => {
+        const timeA = a.timestamp?.seconds || 0;
+        const timeB = b.timestamp?.seconds || 0;
+        return timeB - timeA;
+      });
+      if (testsOfType.length > 0) {
+        latestTests[type] = getShortResult(type, testsOfType[0].scores);
+      } else {
+        latestTests[type] = '-';
+      }
+    });
+
+    return {
+      ...guest,
+      latestTests
+    };
+  }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const title = "RANGKUMAN HASIL AKHIR TES PSIKOLOGI PESERTA UMUM";
+    
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text(teacherSettings?.pemdaName?.toUpperCase() || "PEMERINTAH PROVINSI / KOTA", 148.5, 15, { align: 'center' });
+    doc.text(teacherSettings?.dinasName?.toUpperCase() || "DINAS PENDIDIKAN", 148.5, 22, { align: 'center' });
+    doc.setFontSize(16);
+    doc.text(teacherSettings?.schoolName?.toUpperCase() || "NAMA SEKOLAH ANDA DISINI", 148.5, 30, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(teacherSettings?.schoolAddress || "Alamat Lengkap Sekolah, No. Telp, Website, Email", 148.5, 36, { align: 'center' });
+    doc.line(20, 40, 277, 40);
+    doc.line(20, 41, 277, 41);
+
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text(title, 148.5, 50, { align: 'center' });
+
+    const tableData = guestResults.map((g, idx) => {
+      return [
+        idx + 1,
+        g.name || '-',
+        g.className || 'UMUM',
+        g.nisn || '-',
+        g.latestTests['learning_style'] || '-',
+        g.latestTests['personality'] || '-',
+        g.latestTests['multiple_intelligences'] || '-',
+        g.latestTests['aptitude_interest'] || '-',
+        g.latestTests['school_major'] || '-',
+        g.latestTests['anxiety'] || '-',
+        g.latestTests['iq_wais'] || '-',
+        g.latestTests['wartegg'] || '-'
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 65,
+      head: [
+        [
+          { content: 'NO', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          { content: 'NAMA PESERTA', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          { content: 'JENJANG', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          { content: 'NAMA SEKOLAH/ ALAMAT', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          { content: 'JENIS TES', colSpan: 8, styles: { halign: 'center' } }
+        ],
+        [
+          { content: 'GAYA BELAJAR', styles: { halign: 'center' } },
+          { content: 'TIPE KEPRIBADIAN', styles: { halign: 'center' } },
+          { content: 'KECERDASAN MAJEMUK', styles: { halign: 'center' } },
+          { content: 'BAKAT MINAT', styles: { halign: 'center' } },
+          { content: 'PENJURUSAN', styles: { halign: 'center' } },
+          { content: 'KECEMASAN', styles: { halign: 'center' } },
+          { content: 'IQ WAIS', styles: { halign: 'center' } },
+          { content: 'WARTEGG', styles: { halign: 'center' } }
+        ]
+      ],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', lineWidth: 0.1, lineColor: 200 },
+      styles: { fontSize: 5, cellPadding: 1, lineWidth: 0.1, lineColor: 200 },
+      columnStyles: {
+        0: { cellWidth: 6, halign: 'center' },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 15, halign: 'center' },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 20, halign: 'center' },
+        5: { cellWidth: 25, halign: 'center' },
+        6: { cellWidth: 25, halign: 'center' },
+        7: { cellWidth: 25, halign: 'center' },
+        8: { cellWidth: 20, halign: 'center' },
+        9: { cellWidth: 20, halign: 'center' },
+        10: { cellWidth: 20, halign: 'center' },
+        11: { cellWidth: 20, halign: 'center' }
+      }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 20;
+    const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Dicetak pada: ${today}`, 20, finalY - 10);
+    doc.text("Mengetahui,", 240, finalY, { align: 'center' });
+    doc.text("Guru Bimbingan Konseling,", 240, finalY + 5, { align: 'center' });
+    doc.setFont("helvetica", "bold");
+    doc.text(teacherSettings?.name || "(....................................)", 240, finalY + 30, { align: 'center' });
+    doc.setFont("helvetica", "normal");
+    doc.text(`NIP. ${teacherSettings?.nip || "...................................."}`, 240, finalY + 35, { align: 'center' });
+
+    doc.save(`hasil_akhir_tes_umum_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div>
+          <h3 className="text-xl font-bold text-slate-900">Hasil Tes Peserta Umum</h3>
+          <p className="text-sm text-slate-500">Rangkuman hasil akhir seluruh tes psikologi peserta umum.</p>
+        </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2 min-w-[100px]">
+            <Users className="w-3.5 h-3.5 text-slate-400" />
+            <div className="flex flex-col">
+              <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">JUMLAH PESERTA</span>
+              <span className="text-xs font-bold text-emerald-600 leading-none mt-0.5">{guestResults.length}</span>
+            </div>
+          </div>
+          <button 
+            onClick={handleDownloadPDF}
+            className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-black text-sm hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-100"
+          >
+            <Download className="w-4 h-4" /> DOWNLOAD PDF
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+          <div style={{ transform: 'rotateX(180deg)' }}>
+            <table className="w-full text-left min-w-[1200px] border-collapse">
+            <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-widest font-bold border-b border-slate-200">
+              <tr>
+                <th rowSpan={2} className="px-4 py-3 border-r border-slate-200 text-center align-middle">No</th>
+                <th rowSpan={2} className="px-4 py-3 border-r border-slate-200 text-center align-middle">Nama Peserta</th>
+                <th rowSpan={2} className="px-4 py-3 border-r border-slate-200 text-center align-middle">Jenjang</th>
+                <th rowSpan={2} className="px-4 py-3 border-r border-slate-200 text-center align-middle">Nama Sekolah/ Alamat</th>
+                <th colSpan={8} className="px-4 py-2 border-b border-slate-200 text-center">Jenis Tes</th>
+                <th rowSpan={2} className="px-4 py-3 text-center align-middle">Aksi</th>
+              </tr>
+              <tr>
+                <th className="px-4 py-2 border-r border-slate-200 text-center">Gaya Belajar</th>
+                <th className="px-4 py-2 border-r border-slate-200 text-center">Tipe Kepribadian</th>
+                <th className="px-4 py-2 border-r border-slate-200 text-center">Kecerdasan Majemuk</th>
+                <th className="px-4 py-2 border-r border-slate-200 text-center">Bakat Minat</th>
+                <th className="px-4 py-2 border-r border-slate-200 text-center">Penjurusan</th>
+                <th className="px-4 py-2 border-r border-slate-200 text-center">Kecemasan</th>
+                <th className="px-4 py-2 border-r border-slate-200 text-center">IQ WAIS</th>
+                <th className="px-4 py-2 border-r border-slate-200 text-center">Wartegg</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {guestResults.map((g, idx) => (
+                <tr key={g.uid || idx} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-4 py-3 text-xs text-slate-500 text-center border-r border-slate-100">{idx + 1}</td>
+                  <td className="px-4 py-3 border-r border-slate-100">
+                    <span className="text-sm font-bold text-slate-900">{g.name || '-'}</span>
+                  </td>
+                  <td className="px-4 py-3 text-center border-r border-slate-100">
+                    <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase">{g.className || 'UMUM'}</span>
+                  </td>
+                  <td className="px-4 py-3 border-r border-slate-100 text-sm text-slate-600">
+                    {g.nisn || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['learning_style']}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['personality']}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['multiple_intelligences']}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['aptitude_interest']}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['school_major']}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['anxiety']}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['iq_wais']}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['wartegg']}</td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <button 
+                        onClick={() => handleDownloadDetailedReport(g, results, teacherSettings)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Cetak Laporan Detail Individual"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => onDelete?.(g)}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Hapus Semua Hasil Tes Peserta"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {guestResults.length === 0 && (
+                <tr>
+                  <td colSpan={13} className="p-12 text-center text-slate-400 font-bold italic">
+                    Tidak ada data peserta umum ditemukan.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminDashboard = ({ results, classes, students, teacherSettings, user, setView, showToast, setTestResult, allUsers }: { results: TestResult[], classes: ClassInfo[], students: StudentData[], teacherSettings: TeacherSettings | null, user: UserProfile, setView: (v: any) => void, showToast: (m: string, t?: 'success' | 'error' | 'info') => void, setTestResult: (r: TestResult | null) => void, allUsers: any[] }) => {
   const [selectedClass, setSelectedClass] = useState<string>(() => localStorage.getItem('adminSelectedClass') || 'all');
   const [filterName, setFilterName] = useState('');
   const [filterType, setFilterType] = useState<string>(() => localStorage.getItem('adminFilterType') || 'all');
@@ -2727,7 +3258,7 @@ const AdminDashboard = ({ results, classes, students, teacherSettings, user, set
   const [tamuSearch, setTamuSearch] = useState('');
   const [tamuTypeFilter, setTamuTypeFilter] = useState<string>(() => localStorage.getItem('adminTamuTypeFilter') || 'all');
   const [tamuDate, setTamuDate] = useState('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'students' | 'teacher' | 'report' | 'recap' | 'tamu' | 'recap-tamu' | 'monitor' | 'hasil-tes'>(() => (localStorage.getItem('adminActiveTab') as any) || 'dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'students' | 'teacher' | 'report' | 'recap' | 'tamu' | 'recap-tamu' | 'monitor' | 'hasil-tes' | 'manajemen-tamu' | 'hasil-tes-tamu'>(() => (localStorage.getItem('adminActiveTab') as any) || 'dashboard');
   const [editingStudent, setEditingStudent] = useState<StudentData | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string, type: 'student' | 'result' | 'all_students' | 'results_by_student' | 'results_by_guest', title: string, message: string, extraData?: any } | null>(null);
   const [classAnalysis, setClassAnalysis] = useState('');
@@ -2909,7 +3440,24 @@ const AdminDashboard = ({ results, classes, students, teacherSettings, user, set
   };
 
   const handleAddStudent = async () => {
-    if (!newStudentName || !newStudentClass) return;
+    if (!newStudentName || !newStudentClass) {
+      showToast("Nama dan Kelas wajib diisi.", "error");
+      return;
+    }
+
+    if (newStudentNisn) {
+      if (!/^\d+$/.test(newStudentNisn)) {
+        showToast("NISN hanya boleh berisi angka.", "error");
+        return;
+      }
+      
+      const isDuplicate = students.some(s => s.nisn === newStudentNisn);
+      if (isDuplicate) {
+        showToast("NISN sudah terdaftar.", "error");
+        return;
+      }
+    }
+
     try {
       await addDoc(collection(db, 'students'), {
         number: newStudentNumber,
@@ -2922,6 +3470,7 @@ const AdminDashboard = ({ results, classes, students, teacherSettings, user, set
       setNewStudentNisn('');
       setNewStudentName('');
       setNewStudentClass('');
+      showToast("Siswa berhasil ditambahkan.", "success");
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'students');
     }
@@ -2954,15 +3503,20 @@ const AdminDashboard = ({ results, classes, students, teacherSettings, user, set
       const newIds: string[] = [];
       for (const row of jsonData) {
         const number = row["No"] || row["Nomor"] || "";
-        const nisn = row["NISN"] || "";
+        const nisn = row["NISN"] ? String(row["NISN"]) : "";
         const name = row["Nama Siswa"] || row["Nama"];
         const className = row["Kelas"];
         
         if (name && className) {
+          // Skip if NISN is provided and already exists in the database
+          if (nisn && students.some(s => s.nisn === nisn)) {
+            continue;
+          }
+
           try {
             const docRef = await addDoc(collection(db, 'students'), {
               number: String(number),
-              nisn: String(nisn),
+              nisn: nisn,
               name: String(name),
               className: String(className),
               addedBy: user.uid
@@ -3135,56 +3689,62 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      {/* Sidebar 15% */}
-      <div className="w-[15%] min-w-[240px] bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-950 text-white flex flex-col shadow-2xl z-10">
+      {/* Sidebar 17% */}
+      <div className="w-[17%] min-w-[260px] bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-950 text-white flex flex-col shadow-2xl z-10">
         <div className="p-6 border-b border-emerald-700/50 bg-gradient-to-br from-emerald-500/20 to-transparent">
           <h2 className="text-2xl font-black tracking-tight truncate text-emerald-50">PsikoTest</h2>
           <div className="mt-3 flex justify-start">
-            <img src="https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9" alt="Dutatama Logo" className="w-32 h-auto opacity-90 hover:opacity-100 transition-opacity" referrerPolicy="no-referrer" />
+            <img src="https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9" alt="Dutatama Logo" className="w-32 h-auto opacity-90 hover:opacity-100 transition-opacity cursor-pointer" referrerPolicy="no-referrer" />
           </div>
           <p className="text-[10px] text-emerald-200/60 truncate mt-3 font-medium opacity-80">{user.email}</p>
         </div>
         <div className="flex-1 overflow-y-auto py-6 space-y-1.5 px-4">
-          <button onClick={() => setActiveTab('dashboard')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide", activeTab === 'dashboard' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
+          <button onClick={() => setActiveTab('dashboard')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'dashboard' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
             <LayoutDashboard className="w-4 h-4" /> DASHBOARD
           </button>
-          <button onClick={() => setActiveTab('students')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide", activeTab === 'students' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
+          <button onClick={() => setActiveTab('students')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'students' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
             <GraduationCap className="w-4 h-4" /> MANAJEMEN SISWA
           </button>
-          <button onClick={() => setActiveTab('history')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide", activeTab === 'history' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
-            <History className="w-4 h-4" /> RIWAYAT TES SISWA
-          </button>
-          <button onClick={() => setActiveTab('recap')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide", activeTab === 'recap' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
-            <FileText className="w-4 h-4" /> REKAP HASIL SISWA
-          </button>
-          <button onClick={() => setActiveTab('report')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide", activeTab === 'report' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
-            <BarChart3 className="w-4 h-4" /> LAPORAN SISWA
-          </button>
-          <button onClick={() => setActiveTab('tamu')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide", activeTab === 'tamu' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
-            <Compass className="w-4 h-4" /> RIWAYAT TAMU
-          </button>
-          <button onClick={() => setActiveTab('recap-tamu')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide", activeTab === 'recap-tamu' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
-            <ClipboardCheck className="w-4 h-4" /> REKAP HASIL TAMU
-          </button>
-          <button onClick={() => setActiveTab('monitor')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide", activeTab === 'monitor' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
+          <button onClick={() => setActiveTab('monitor')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'monitor' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
             <Monitor className="w-4 h-4" /> MONITOR SISWA
           </button>
-          <button onClick={() => setActiveTab('hasil-tes')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide", activeTab === 'hasil-tes' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
-            <ClipboardCheck className="w-4 h-4" /> HASIL TES
+          <button onClick={() => setActiveTab('history')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'history' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
+            <History className="w-4 h-4" /> RIWAYAT TES SISWA
           </button>
-          <button onClick={() => setActiveTab('teacher')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide", activeTab === 'teacher' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
+          <button onClick={() => setActiveTab('recap')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'recap' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
+            <FileText className="w-4 h-4" /> REKAP HASIL TES SISWA
+          </button>
+          <button onClick={() => setActiveTab('hasil-tes')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'hasil-tes' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
+            <ClipboardCheck className="w-4 h-4" /> HASIL TES SISWA
+          </button>
+          <button onClick={() => setActiveTab('report')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'report' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
+            <BarChart3 className="w-4 h-4" /> LAPORAN KELAS
+          </button>
+          <button onClick={() => setActiveTab('manajemen-tamu')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'manajemen-tamu' ? "bg-amber-900/60 text-[#FFC30B] shadow-lg shadow-amber-950/40 border border-[#FFC30B]/30" : "text-[#FFC30B] hover:bg-amber-900/40")}>
+            <Users className="w-4 h-4" /> MANAJEMEN PESERTA UMUM
+          </button>
+          <button onClick={() => setActiveTab('tamu')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'tamu' ? "bg-amber-900/60 text-[#FFC30B] shadow-lg shadow-amber-950/40 border border-[#FFC30B]/30" : "text-[#FFC30B] hover:bg-amber-900/40")}>
+            <Compass className="w-4 h-4" /> RIWAYAT PESERTA UMUM
+          </button>
+          <button onClick={() => setActiveTab('recap-tamu')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'recap-tamu' ? "bg-amber-900/60 text-[#FFC30B] shadow-lg shadow-amber-950/40 border border-[#FFC30B]/30" : "text-[#FFC30B] hover:bg-amber-900/40")}>
+            <ClipboardCheck className="w-4 h-4" /> REKAP PESERTA UMUM
+          </button>
+          <button onClick={() => setActiveTab('hasil-tes-tamu')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'hasil-tes-tamu' ? "bg-amber-900/60 text-[#FFC30B] shadow-lg shadow-amber-950/40 border border-[#FFC30B]/30" : "text-[#FFC30B] hover:bg-amber-900/40")}>
+            <ClipboardCheck className="w-4 h-4" /> HASIL TEST PESERTA UMUM
+          </button>
+          <button onClick={() => setActiveTab('teacher')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'teacher' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
             <UserIcon className="w-4 h-4" /> DATA GURU BK
           </button>
         </div>
         <div className="p-6 border-t border-emerald-700/50 space-y-3">
-          <button onClick={() => setView('create-test')} className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-emerald-500 hover:bg-emerald-400 rounded-xl text-xs font-black transition-all text-white shadow-xl shadow-emerald-950/30">
+          <button onClick={() => setView('create-test')} className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-emerald-500 hover:bg-emerald-400 rounded-xl text-xs font-black transition-all text-white shadow-xl shadow-emerald-950/30 cursor-pointer">
             <Plus className="w-4 h-4" /> BUAT TES KUSTOM
           </button>
         </div>
       </div>
 
-      {/* Main Content 85% */}
-      <div className="w-[85%] flex-1 overflow-y-auto p-8 bg-slate-50/50">
+      {/* Main Content 83% */}
+      <div className="w-[83%] flex-1 overflow-y-auto p-8 bg-slate-50/50">
         <div className="max-w-6xl mx-auto space-y-8">
           {/* Header Title based on activeTab */}
           <div className="bg-emerald-500 p-6 rounded-2xl border border-emerald-600 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -3196,8 +3756,10 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                 {activeTab === 'teacher' && 'Data Guru BK'}
                 {activeTab === 'report' && 'Laporan Siswa'}
                 {activeTab === 'recap' && 'Rekap Hasil Tes Siswa'}
-                {activeTab === 'recap-tamu' && 'Rekap Hasil Tes Tamu'}
-                {activeTab === 'tamu' && 'Riwayat Peserta Tamu'}
+                {activeTab === 'recap-tamu' && 'Rekap Peserta Umum'}
+                {activeTab === 'hasil-tes-tamu' && 'Hasil Test Peserta Umum'}
+                {activeTab === 'manajemen-tamu' && 'Manajemen Peserta Umum'}
+                {activeTab === 'tamu' && 'Riwayat Peserta Umum'}
                 {activeTab === 'monitor' && 'Monitor Siswa'}
                 {activeTab === 'hasil-tes' && 'Hasil Tes Psikologi'}
               </h2>
@@ -3209,7 +3771,9 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                 {activeTab === 'report' && 'Analisis hasil tes per kelas dengan bantuan AI.'}
                 {activeTab === 'recap' && 'Rekapitulasi seluruh hasil tes siswa dalam bentuk tabel.'}
                 {activeTab === 'recap-tamu' && 'Tabel rekapitulasi hasil tes peserta umum.'}
-                {activeTab === 'tamu' && 'Kelola data dan hasil tes untuk peserta tamu yang tidak terdaftar.'}
+                {activeTab === 'hasil-tes-tamu' && 'Rangkuman hasil akhir seluruh tes psikologi peserta umum.'}
+                {activeTab === 'manajemen-tamu' && 'Kelola data peserta umum yang tidak terdaftar di Manajemen Siswa.'}
+                {activeTab === 'tamu' && 'Kelola riwayat hasil tes untuk peserta umum.'}
                 {activeTab === 'monitor' && 'Pantau status pengerjaan tes siswa.'}
                 {activeTab === 'hasil-tes' && 'Rangkuman hasil akhir seluruh tes psikologi siswa.'}
               </p>
@@ -3362,14 +3926,16 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                   <span className="text-xs font-bold text-slate-500 bg-slate-200/50 px-3 py-1.5 rounded-lg">{tableFilteredResults.length} hasil ditemukan</span>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
+              <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+                <div style={{ transform: 'rotateX(180deg)' }}>
+                  <table className="w-full text-left">
                   <thead className="bg-white border-b border-slate-100 text-slate-500 text-[10px] uppercase tracking-widest font-black">
                     <tr>
                       <th className="px-6 py-4">Siswa</th>
                       <th className="px-6 py-4">Kelas</th>
                       <th className="px-6 py-4">Jenis Tes</th>
                       <th className="px-6 py-4">Tanggal</th>
+                      <th className="px-6 py-4">Waktu</th>
                       <th className="px-6 py-4">Hasil Tes</th>
                       <th className="px-6 py-4 text-right">Aksi</th>
                     </tr>
@@ -3393,6 +3959,9 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                         </td>
                         <td className="px-6 py-4 text-slate-500 font-medium">
                           {r.timestamp ? new Date(r.timestamp.seconds * 1000).toLocaleDateString('id-ID') : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-slate-500 font-medium">
+                          {r.timestamp ? new Date(r.timestamp.seconds * 1000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100">
@@ -3447,6 +4016,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
             </motion.div>
           )}
@@ -3558,7 +4128,12 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     type="text" 
                     placeholder="NISN" 
                     value={newStudentNisn}
-                    onChange={(e) => setNewStudentNisn(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || /^\d+$/.test(val)) {
+                        setNewStudentNisn(val);
+                      }
+                    }}
                     className="px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium focus:ring-2 focus:ring-emerald-600"
                   />
                   <input 
@@ -3585,7 +4160,9 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
               </div>
 
               <div className="max-h-[500px] overflow-y-auto border border-slate-200 rounded-2xl shadow-sm">
-                <table className="w-full text-left">
+                <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+                  <div style={{ transform: 'rotateX(180deg)' }}>
+                    <table className="w-full text-left">
                   <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
                     <tr className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                       <th className="px-6 py-4">No</th>
@@ -3700,7 +4277,9 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
+            </div>
             </motion.div>
           )}
 
@@ -4238,10 +4817,16 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                 onDelete={(name) => setConfirmDelete({
                   id: name,
                   type: 'results_by_guest',
-                  title: 'Hapus Semua Hasil Tes Tamu',
+                  title: 'Hapus Semua Hasil Tes Peserta Umum',
                   message: `Apakah Anda yakin ingin menghapus SEMUA hasil tes untuk tamu ${name}?`
                 })}
               />
+            </motion.div>
+          )}
+
+          {activeTab === 'manajemen-tamu' && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <ManajemenTamu users={allUsers} classes={classes} />
             </motion.div>
           )}
 
@@ -4254,7 +4839,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     <Users className="w-7 h-7 text-emerald-600" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Peserta Tamu</p>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Peserta Umum</p>
                     <h4 className="text-3xl font-black text-slate-900">
                       {Array.from(new Set(results.filter(r => !registeredClassNames.includes(r.studentClass)).map(r => r.studentName))).length}
                     </h4>
@@ -4265,7 +4850,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     <ClipboardCheck className="w-7 h-7 text-emerald-600" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Tes Tamu</p>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Tes Peserta Umum</p>
                     <h4 className="text-3xl font-black text-slate-900">
                       {results.filter(r => !registeredClassNames.includes(r.studentClass)).length}
                     </h4>
@@ -4282,7 +4867,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input 
                           type="text" 
-                          placeholder="Cari nama tamu..." 
+                          placeholder="Cari nama peserta umum..." 
                           value={tamuSearch}
                           onChange={(e) => setTamuSearch(e.target.value)}
                           className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-600 outline-none text-sm font-medium"
@@ -4322,12 +4907,14 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     </span>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+                  <div style={{ transform: 'rotateX(180deg)' }}>
+                    <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
                         <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Tanggal</th>
-                        <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Nama Tamu</th>
+                        <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Waktu</th>
+                        <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Nama Peserta Umum</th>
                         <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Jenjang / Asal</th>
                         <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Jenis Tes</th>
                         <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-wider">Hasil/Skor</th>
@@ -4348,6 +4935,9 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                         <tr key={result.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="p-4 text-sm font-medium text-slate-600">
                             {result.timestamp?.toDate ? result.timestamp.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                          </td>
+                          <td className="p-4 text-sm font-medium text-slate-600">
+                            {result.timestamp?.toDate ? result.timestamp.toDate().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
                           </td>
                           <td className="p-4">
                             <div className="font-bold text-slate-900">{result.studentName}</div>
@@ -4404,6 +4994,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -4439,6 +5030,24 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                   title: 'Hapus Semua Hasil Tes',
                   message: `Apakah Anda yakin ingin menghapus SEMUA hasil tes untuk ${s.name}?`,
                   extraData: { name: s.name, className: s.className }
+                })}
+              />
+            </motion.div>
+          )}
+
+          {activeTab === 'hasil-tes-tamu' && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <HasilTesTamu 
+                results={results} 
+                classes={classes} 
+                users={allUsers} 
+                teacherSettings={teacherSettings}
+                onDelete={(g) => setConfirmDelete({
+                  id: g.uid || '',
+                  type: 'results_by_guest',
+                  title: 'Hapus Semua Hasil Tes Peserta',
+                  message: `Apakah Anda yakin ingin menghapus SEMUA hasil tes untuk ${g.name}?`,
+                  extraData: { name: g.name, className: g.className }
                 })}
               />
             </motion.div>
@@ -4520,6 +5129,25 @@ const TeacherGuide = ({ onBack }: { onBack: () => void }) => (
           </div>
         </section>
 
+        <section>
+          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <GraduationCap className="w-6 h-6 text-emerald-600" /> 4. Cara Login bagi siswa (usia dibawah 18 tahun)
+          </h3>
+          <div className="prose prose-emerald text-slate-600">
+            <ul className="list-disc pl-5 space-y-2">
+              <li>Login sebagai tamu (jangan login menggunakan akun belajar.id atau akun pribadi jika usia belum 18 tahun)</li>
+              <li>Masukkan link : <span className="font-bold text-emerald-600">https://bit.ly/Psikotest_v_1</span></li>
+              <li>Muncul Notifikasi Pengalihan: Halaman sebelumnya berusaha untuk mengarahkan Anda ke <span className="text-xs bg-slate-100 px-1">https://ais-pre-442whtbiqchwwuwgg6aaue-10864217327.asia-southeast1.run.app</span></li>
+              <li>Pilih / klik alamat : <span className="font-bold text-emerald-600">https://ais-pre-442whtbiqchwwuwgg6aaue-10864217327.asia-southeast1.run.app</span></li>
+              <li>Muncul Menu Login</li>
+              <li>Pilih tombol : <strong>Masuk tanpa akun Google</strong></li>
+            </ul>
+            <p className="mt-4 text-sm italic bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <strong>Catatan :</strong> Untuk akun dengan usia di atas 18 tahun bisa menggunakan tombol yang lain.
+            </p>
+          </div>
+        </section>
+
         <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
           <h4 className="font-bold text-emerald-900 mb-2">Tips Progres Siswa:</h4>
           <p className="text-sm text-emerald-700">
@@ -4533,9 +5161,10 @@ const TeacherGuide = ({ onBack }: { onBack: () => void }) => (
 
 // --- Main App ---
 
-const IdentityForm = ({ classes, students, onSave }: { classes: ClassInfo[], students: StudentData[], onSave: (data: { name: string, className: string, nisn?: string }) => void }) => {
-  const [step, setStep] = useState<'initial' | 'registered' | 'studentCard' | 'guest'>('initial');
+const IdentityForm = ({ classes, students, onSave, onLogout, initialStep = 'initial' }: { classes: ClassInfo[], students: StudentData[], onSave: (data: { name: string, className: string, nisn?: string }) => void, onLogout: () => void, initialStep?: 'initial' | 'registered' | 'studentCard' | 'guest' }) => {
+  const [step, setStep] = useState<'initial' | 'registered' | 'studentCard' | 'guest'>(initialStep);
   const [nisnInput, setNisnInput] = useState('');
+  const [showNisn, setShowNisn] = useState(false);
   const [foundStudent, setFoundStudent] = useState<StudentData | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -4558,10 +5187,20 @@ const IdentityForm = ({ classes, students, onSave }: { classes: ClassInfo[], stu
   const handleGuestSubmit = async () => {
     if (guestName && guestJenjang) {
       setIsLoading(true);
+      setErrorMsg('');
       try {
         await onSave({ name: guestName, className: guestJenjang, nisn: guestAsal });
+      } catch (error: any) {
+        let msg = "Terjadi kesalahan saat menyimpan data.";
+        try {
+          const parsed = JSON.parse(error.message);
+          if (parsed.error) msg = `Error: ${parsed.error}`;
+        } catch {
+          msg = error.message || msg;
+        }
+        setErrorMsg(msg);
       } finally {
-        // We don't necessarily need to set loading to false if the component unmounts
+        setIsLoading(false);
       }
     }
   };
@@ -4569,10 +5208,20 @@ const IdentityForm = ({ classes, students, onSave }: { classes: ClassInfo[], stu
   const handleStudentSubmit = async () => {
     if (foundStudent) {
       setIsLoading(true);
+      setErrorMsg('');
       try {
         await onSave({ name: foundStudent.name, className: foundStudent.className, nisn: foundStudent.nisn });
+      } catch (error: any) {
+        let msg = "Terjadi kesalahan saat menyimpan data.";
+        try {
+          const parsed = JSON.parse(error.message);
+          if (parsed.error) msg = `Error: ${parsed.error}`;
+        } catch {
+          msg = error.message || msg;
+        }
+        setErrorMsg(msg);
       } finally {
-        // We don't necessarily need to set loading to false if the component unmounts
+        setIsLoading(false);
       }
     }
   };
@@ -4606,6 +5255,12 @@ const IdentityForm = ({ classes, students, onSave }: { classes: ClassInfo[], stu
               >
                 <Users className="w-5 h-5" /> UMUM
               </button>
+              <button 
+                onClick={onLogout}
+                className="w-full text-red-600 text-xs font-bold hover:bg-red-50 transition-all py-2 rounded-xl flex items-center justify-center gap-2"
+              >
+                <LogOut className="w-4 h-4" /> KELUAR APLIKASI
+              </button>
             </div>
 
             <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
@@ -4621,15 +5276,24 @@ const IdentityForm = ({ classes, students, onSave }: { classes: ClassInfo[], stu
             <h2 className="text-2xl font-black text-slate-900">Login Siswa</h2>
             <p className="text-slate-500 text-sm">Masukkan NISN Anda sebagai password.</p>
             
-            <div>
+            <div className="relative">
               <label className="block text-sm font-bold text-slate-700 mb-2">NISN</label>
-              <input 
-                type="password"
-                value={nisnInput}
-                onChange={(e) => setNisnInput(e.target.value)}
-                placeholder="Masukkan NISN"
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-emerald-600 focus:outline-none transition-all"
-              />
+              <div className="relative">
+                <input 
+                  type={showNisn ? "text" : "password"}
+                  value={nisnInput}
+                  onChange={(e) => setNisnInput(e.target.value)}
+                  placeholder="Masukkan NISN"
+                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-emerald-600 focus:outline-none transition-all pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNisn(!showNisn)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-emerald-600 transition-colors"
+                >
+                  {showNisn ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
 
             {errorMsg && (
@@ -4675,28 +5339,52 @@ const IdentityForm = ({ classes, students, onSave }: { classes: ClassInfo[], stu
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">NISN</p>
-                  <p className="text-base font-bold text-slate-800">{foundStudent.nisn}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-base font-bold text-slate-800">
+                      {showNisn ? foundStudent.nisn : '●●●●●●●●●●'}
+                    </p>
+                    <button
+                      onClick={() => setShowNisn(!showNisn)}
+                      className="text-slate-400 hover:text-emerald-600 transition-colors"
+                    >
+                      {showNisn ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <button 
-              onClick={handleStudentSubmit}
-              disabled={isLoading}
-              className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <motion.div 
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                  >
-                    <Loader2 className="w-5 h-5" />
-                  </motion.div>
-                  MEMULAI...
-                </div>
-              ) : "MULAI TES"}
-            </button>
+            {errorMsg && (
+              <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                <p className="text-xs text-red-600 font-medium leading-relaxed">{errorMsg}</p>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={handleStudentSubmit}
+                disabled={isLoading}
+                className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <motion.div 
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                    >
+                      <Loader2 className="w-5 h-5" />
+                    </motion.div>
+                    MEMULAI...
+                  </div>
+                ) : "MULAI TES"}
+              </button>
+              <button 
+                onClick={onLogout}
+                className="w-full text-red-600 text-xs font-bold hover:bg-red-50 transition-all py-3 rounded-xl flex items-center justify-center gap-2"
+              >
+                <LogOut className="w-4 h-4" /> KELUAR APLIKASI
+              </button>
+            </div>
           </div>
         )}
 
@@ -4740,6 +5428,11 @@ const IdentityForm = ({ classes, students, onSave }: { classes: ClassInfo[], stu
             </div>
 
             <div className="flex flex-col gap-3">
+              {errorMsg && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                  <p className="text-xs text-red-600 font-medium leading-relaxed">{errorMsg}</p>
+                </div>
+              )}
               <button 
                 onClick={handleGuestSubmit}
                 disabled={!guestName || !guestJenjang || isLoading}
@@ -4780,6 +5473,7 @@ export default function App() {
   const [allResults, setAllResults] = useState<TestResult[]>([]);
   const [userResults, setUserResults] = useState<TestResult[]>([]);
   const [students, setStudents] = useState<StudentData[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
 
   // Derive classes dari data siswa secara otomatis (hanya yang terdaftar di Manajemen Siswa)
   const classes = React.useMemo(() => {
@@ -4802,6 +5496,8 @@ export default function App() {
   };
 
   const [showProfileSetup, setShowProfileSetup] = useState(false);
+  const [showEmergencyMenu, setShowEmergencyMenu] = useState(false);
+  const [initialIdentityStep, setInitialIdentityStep] = useState<'initial' | 'registered' | 'studentCard' | 'guest'>('initial');
   const [profileData, setProfileData] = useState({ name: '', className: '' });
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
@@ -4850,12 +5546,12 @@ export default function App() {
           setShowProfileSetup(false);
         }
       } catch (error) {
-        console.error("Auth State Change Error:", error);
         if (error instanceof Error && error.message.includes('permission')) {
           handleFirestoreError(error, OperationType.GET, 'users');
         }
       } finally {
         setLoading(false);
+        setIsLoggingIn(false);
       }
     });
 
@@ -4867,12 +5563,22 @@ export default function App() {
     if (!user || !finalData.name || !finalData.className) return;
     
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
+      const isLocal = user.uid.startsWith('local_');
+      const payload: any = {
         name: finalData.name,
         className: finalData.className,
         nisn: finalData.nisn || ''
-      });
-      setUser({ ...user, name: finalData.name, className: finalData.className, nisn: finalData.nisn });
+      };
+
+      if (isLocal) {
+        payload.uid = user.uid;
+        payload.role = user.role;
+        payload.email = user.email || '';
+        payload.createdAt = serverTimestamp();
+      }
+
+      await setDoc(doc(db, 'users', user.uid), payload, { merge: true });
+      setUser({ ...user, ...payload, createdAt: isLocal ? new Date() : user.createdAt });
       setShowProfileSetup(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'users');
@@ -4917,12 +5623,19 @@ export default function App() {
           setCustomTests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
+        const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+          setAllUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, (error) => {
+          handleFirestoreError(error, OperationType.LIST, 'users');
+        });
+
         return () => {
           unsubUserResults();
           unsubResults();
           unsubStudents();
           unsubTeacherSettings();
           unsubCustomTests();
+          unsubUsers();
         };
       }
 
@@ -5021,7 +5734,7 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
     try {
       await signInWithGoogle();
     } catch (error: any) {
-      console.error("Login Error:", error);
+      // console.error("Login Error:", error);
       if (error.code === 'auth/popup-blocked') {
         showToast("Popup diblokir oleh browser. Silakan izinkan popup untuk masuk.", 'error');
       } else {
@@ -5055,11 +5768,97 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
         classes={classes} 
         students={students} 
         onSave={(data) => handleUpdateProfile(data)} 
+        onLogout={handleLogout}
+        initialStep={initialIdentityStep}
       />
     );
   }
 
   if (!user) {
+    if (showEmergencyMenu) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-md w-full bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 text-center"
+          >
+            <div className="bg-emerald-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-100">
+              <UserIcon className="w-8 h-8 text-white" />
+            </div>
+            
+            <h2 className="text-3xl font-black text-slate-900 mb-2">Menu Login</h2>
+            <p className="text-slate-500 text-sm mb-8">Silakan pilih kategori peserta tes:</p>
+
+            <div className="space-y-4">
+              <button 
+                onClick={() => {
+                  const dummyUid = `local_${Date.now()}`;
+                  const dummyUser: UserProfile = {
+                    uid: dummyUid,
+                    name: 'Siswa',
+                    email: '',
+                    role: 'student',
+                    createdAt: new Date()
+                  };
+                  setUser(dummyUser);
+                  setInitialIdentityStep('registered');
+                  setShowProfileSetup(true);
+                  showToast("Masuk sebagai Siswa Terdaftar", "info");
+                }}
+                className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-100"
+              >
+                <GraduationCap className="w-5 h-5" /> SISWA TERDAFTAR
+              </button>
+
+              <button 
+                onClick={() => {
+                  const dummyUid = `local_${Date.now()}`;
+                  const dummyUser: UserProfile = {
+                    uid: dummyUid,
+                    name: 'Peserta Umum',
+                    email: '',
+                    role: 'student',
+                    createdAt: new Date()
+                  };
+                  setUser(dummyUser);
+                  setInitialIdentityStep('guest');
+                  setShowProfileSetup(true);
+                  showToast("Masuk sebagai Peserta Umum", "info");
+                }}
+                className="w-full bg-white text-emerald-600 border-2 border-emerald-600 py-4 rounded-2xl font-bold hover:bg-emerald-50 transition-all flex items-center justify-center gap-3 shadow-md"
+              >
+                <Users className="w-5 h-5" /> UMUM
+              </button>
+
+              <button 
+                onClick={() => setShowEmergencyMenu(false)}
+                className="w-full text-slate-400 text-xs font-bold hover:text-slate-600 transition-colors py-2"
+              >
+                BATAL
+              </button>
+            </div>
+
+            <div className="mt-8 p-5 bg-amber-50 rounded-2xl border border-amber-100 text-left">
+              <p className="text-[11px] text-amber-900 leading-relaxed">
+                <span className="font-black text-amber-700">Petunjuk :</span> Siswa SMP Negeri 2 Magelang yang terdaftar, silahkan pilih tombol <b>SISWA TERDAFTAR</b>, bagi peserta tes yang lain silahkan pilih tombol <b>UMUM</b>.
+              </p>
+            </div>
+
+            <button 
+              onClick={() => setShowEmergencyMenu(false)}
+              className="mt-6 text-slate-400 text-xs font-bold hover:text-slate-600 transition-colors flex items-center justify-center gap-2 mx-auto"
+            >
+              <ArrowLeft className="w-4 h-4" /> KEMBALI KE LOGIN UTAMA
+            </button>
+          </motion.div>
+          <AnimatePresence>
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+          </AnimatePresence>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
         <motion.div 
@@ -5070,54 +5869,119 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
           <div className="bg-emerald-600 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-emerald-200">
             <Brain className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">PsikoTest</h1>
-          <p className="text-slate-500 mb-10 leading-relaxed">
+          <h1 className="text-4xl font-black text-slate-900 mb-2 tracking-tight">PsikoTest</h1>
+          <img src="https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9" alt="Dutatama Logo" className="h-6 w-auto mx-auto mb-4 opacity-90" referrerPolicy="no-referrer" />
+          <p className="text-slate-500 mb-8 leading-relaxed">
             Platform asesmen psikologi profesional untuk membantu siswa SMP & SMA menemukan potensi terbaik mereka.
           </p>
+
           <button 
             onClick={handleLogin}
             disabled={isLoggingIn}
-            className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+            className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mb-4 cursor-pointer"
           >
             {isLoggingIn ? (
               <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
             ) : (
               <>
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
-                Masuk dengan Google
+                LOGIN DENGAN GOOGLE
               </>
             )}
           </button>
 
-          <button 
-            onClick={() => {
-              const guestUser: UserProfile = {
-                uid: 'guest_' + Math.random().toString(36).substr(2, 9),
-                name: 'Tamu',
-                email: 'guest@example.com',
-                role: 'student',
-                createdAt: serverTimestamp()
-              };
-              setUser(guestUser);
-              setShowProfileSetup(true);
-            }}
-            className="w-full bg-white text-slate-600 py-4 rounded-2xl font-bold border-2 border-slate-100 hover:bg-slate-50 transition-all flex items-center justify-center gap-3"
-          >
-            Masuk sebagai Tamu (Siswa)
-          </button>
+          <div className="grid grid-cols-1 gap-3">
+            <button 
+              onClick={async () => {
+                const timeout = setTimeout(() => {
+                  if (isLoggingIn) {
+                    setIsLoggingIn(false);
+                    showToast("Koneksi ke server lambat. Silakan coba lagi atau gunakan browser lain.", "error");
+                  }
+                }, 10000);
 
-          <div className="mt-8 p-4 bg-amber-50 rounded-2xl border border-amber-100 text-left">
+                try {
+                  setIsLoggingIn(true);
+                  setInitialIdentityStep('registered');
+                  await signInAsGuest();
+                  clearTimeout(timeout);
+                } catch (error: any) {
+                  clearTimeout(timeout);
+                  let errorMsg = error.message || "Gagal masuk. Pastikan Anonymous Auth aktif.";
+                  showToast(errorMsg, 'error');
+                  setIsLoggingIn(false);
+                }
+              }}
+              disabled={isLoggingIn}
+              className="w-full bg-white text-emerald-600 border-2 border-emerald-600 py-4 rounded-2xl font-bold hover:bg-emerald-50 transition-all flex items-center justify-center gap-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {isLoggingIn ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-emerald-600 border-t-transparent" />
+              ) : (
+                <>
+                  <GraduationCap className="w-5 h-5" /> LOGIN SISWA (NISN & NAMA)
+                </>
+              )}
+            </button>
+
+            <button 
+              onClick={async () => {
+                const timeout = setTimeout(() => {
+                  if (isLoggingIn) {
+                    setIsLoggingIn(false);
+                    showToast("Koneksi ke server lambat. Silakan coba lagi.", "error");
+                  }
+                }, 10000);
+
+                try {
+                  setIsLoggingIn(true);
+                  setInitialIdentityStep('guest');
+                  await signInAsGuest();
+                  clearTimeout(timeout);
+                } catch (error: any) {
+                  clearTimeout(timeout);
+                  let errorMsg = error.message || "Gagal masuk sebagai tamu. Pastikan Anonymous Auth aktif.";
+                  showToast(errorMsg, 'error');
+                  setIsLoggingIn(false);
+                }
+              }}
+              disabled={isLoggingIn}
+              className="w-full bg-white text-slate-600 border-2 border-slate-200 py-4 rounded-2xl font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {isLoggingIn ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-400 border-t-transparent" />
+              ) : (
+                <>
+                  <Users className="w-5 h-5" /> LOGIN PESERTA UMUM
+                </>
+              )}
+            </button>
+
+            <div className="h-px bg-slate-100 my-2" />
+
+            <button 
+              onClick={() => setShowEmergencyMenu(true)}
+              className="w-full text-emerald-600 text-xs font-black hover:bg-emerald-50 transition-all py-3 border-2 border-emerald-600 rounded-xl mt-2 flex items-center justify-center gap-2 shadow-sm"
+            >
+              <AlertCircle className="w-4 h-4" /> MASUK TANPA AKUN GOOGLE
+            </button>
+          </div>
+
+          <div className="mt-8 p-4 bg-blue-50 rounded-2xl border border-blue-100 text-left">
             <div className="flex gap-3">
-              <Info className="w-5 h-5 text-amber-600 shrink-0" />
+              <Info className="w-5 h-5 text-blue-600 shrink-0" />
               <div>
-                <p className="text-xs font-bold text-amber-900 mb-1">Masalah Login?</p>
-                <p className="text-[10px] text-amber-800 leading-relaxed">
-                  Jika tombol tidak merespon, pastikan domain ini sudah terdaftar di <b>Authorized Domains</b> pada Firebase Console Anda.
+                <p className="text-xs font-bold text-blue-900 mb-1">Penting untuk Siswa!</p>
+                <p className="text-[10px] text-blue-800 leading-relaxed">
+                  Gunakan tombol <b>"MASUK TANPA AKUN GOOGLE"</b> apabila gagal masuk lewat ketiga tombol di atas.
                 </p>
               </div>
             </div>
           </div>
         </motion.div>
+        <AnimatePresence>
+          {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        </AnimatePresence>
       </div>
     );
   }
@@ -5163,7 +6027,19 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.05 }}
             >
-              <ResultView result={testResult} onBack={() => setTestResult(null)} showToast={showToast} teacherSettings={teacherSettings} />
+              <ResultView 
+                result={testResult} 
+                onBack={() => {
+                  setTestResult(null);
+                  setActiveTest(null);
+                  setActiveCustomTest(null);
+                  if (user?.role === 'student') {
+                    setView('dashboard');
+                  }
+                }} 
+                showToast={showToast} 
+                teacherSettings={teacherSettings} 
+              />
             </motion.div>
           ) : view === 'admin' ? (
             <motion.div
@@ -5171,7 +6047,7 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              <AdminDashboard results={allResults} classes={classes} students={students} teacherSettings={teacherSettings} user={user} setView={setView} showToast={showToast} setTestResult={setTestResult} />
+              <AdminDashboard results={allResults} classes={classes} students={students} teacherSettings={teacherSettings} user={user} setView={setView} showToast={showToast} setTestResult={setTestResult} allUsers={allUsers} />
             </motion.div>
           ) : view === 'create-test' ? (
             <motion.div
