@@ -77,6 +77,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if true;
       allow create, update: if isEmergencyUser(uid) || isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /test_results/{resultId} {
@@ -103,6 +104,20 @@ service cloud.firestore {
     match /custom_tests/{testId} {
       allow read: if true;
       allow create, update, delete: if isAdmin() || isTeacher();
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || 
+        resource.data.userId == 'all' || 
+        resource.data.userId.matches("^class:.*")
+      );
+      allow create: if isAdmin() || isTeacher();
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == resource.data.userId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])) ||
+        isAdmin() || isTeacher()
+      );
+      allow delete: if isAdmin() || isTeacher();
     }
   }
 }

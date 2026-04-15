@@ -21,8 +21,10 @@ export interface TestResult {
   studentClass?: string;
   studentNisn?: string;
   testType: TestType;
+  visualizationType?: 'bar' | 'pie' | 'radar';
   scores: Record<string, number>;
   analysis: string;
+  extraData?: any;
   timestamp: any;
 }
 
@@ -50,7 +52,7 @@ export interface TeacherSettings {
   dinasName?: string;
 }
 
-export interface Notification {
+export interface AppNotification {
   id?: string;
   userId: string; // 'all' for all students, or specific user ID
   title: string;

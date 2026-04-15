@@ -3,7 +3,7 @@ import { auth, db, signInWithGoogle, logout, signInAsGuest } from './firebase';
 import { onAuthStateChanged, updateEmail } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, onSnapshot, query, where, addDoc, serverTimestamp, updateDoc, deleteDoc, orderBy } from 'firebase/firestore';
-import { UserProfile, TestType, TestResult, ClassInfo, Question, StudentData, TeacherSettings } from './types';
+import { UserProfile, TestType, TestResult, ClassInfo, Question, StudentData, TeacherSettings, AppNotification } from './types';
 import { TESTS, analyzeResult, getShortResult } from './data/tests';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -71,35 +71,75 @@ const handleDownloadPDF = (result: TestResult, teacherSettings: TeacherSettings 
     doc.text("Visualisasi Hasil:", 20, currentY);
     currentY += 10;
 
-    const chartData = Object.entries(result.scores).map(([name, value]) => ({ 
-      name: name.charAt(0).toUpperCase() + name.slice(1).replace('_', ' '), 
-      value 
-    }));
+    if (result.testType === 'wartegg') {
+      const drawings = result.extraData?.drawings || {};
+      const titles = result.extraData?.titles || {};
+      
+      let xPos = 20;
+      let yPos = currentY;
+      const imgSize = 38;
+      const margin = 5;
 
-    const maxScore = Math.max(...chartData.map(d => d.value), 1);
-    const chartWidth = 120;
-    const barHeight = 6;
-    const gap = 4;
+      [...Array(8)].forEach((_, i) => {
+        if (i > 0 && i % 4 === 0) {
+          xPos = 20;
+          yPos += imgSize + 15;
+        }
+        
+        if (drawings[i]) {
+          try {
+            doc.addImage(drawings[i], 'PNG', xPos, yPos, imgSize, imgSize);
+          } catch (e) {
+            doc.rect(xPos, yPos, imgSize, imgSize);
+            doc.setFontSize(6);
+            doc.text("Gagal memuat gambar", xPos + 2, yPos + imgSize/2);
+          }
+        } else {
+          doc.rect(xPos, yPos, imgSize, imgSize);
+        }
+        
+        doc.setFontSize(8);
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Kotak ${i+1}`, xPos, yPos + imgSize + 4);
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        const splitTitle = doc.splitTextToSize(titles[i] || 'Tanpa Judul', imgSize);
+        doc.text(splitTitle, xPos, yPos + imgSize + 8);
+        
+        xPos += imgSize + margin;
+      });
+      currentY = yPos + imgSize + 20;
+    } else {
+      const chartData = Object.entries(result.scores).map(([name, value]) => ({ 
+        name: name.charAt(0).toUpperCase() + name.slice(1).replace('_', ' '), 
+        value 
+      }));
 
-    chartData.forEach((d, i) => {
-      const barWidth = (d.value / maxScore) * chartWidth;
-      
-      // Label
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(71, 85, 105);
-      doc.text(d.name, 20, currentY + 4);
-      
-      // Bar
-      doc.setFillColor(79, 70, 229); // Indigo 600
-      doc.rect(70, currentY, barWidth, barHeight, 'F');
-      
-      // Value
-      doc.text(d.value.toString(), 70 + barWidth + 2, currentY + 4);
-      
-      currentY += barHeight + gap;
-    });
-    currentY += 5;
+      const maxScore = Math.max(...chartData.map(d => d.value), 1);
+      const chartWidth = 120;
+      const barHeight = 6;
+      const gap = 4;
+
+      chartData.forEach((d, i) => {
+        const barWidth = (d.value / maxScore) * chartWidth;
+        
+        // Label
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(71, 85, 105);
+        doc.text(d.name, 20, currentY + 4);
+        
+        // Bar
+        doc.setFillColor(79, 70, 229); // Indigo 600
+        doc.rect(70, currentY, barWidth, barHeight, 'F');
+        
+        // Value
+        doc.text(d.value.toString(), 70 + barWidth + 2, currentY + 4);
+        
+        currentY += barHeight + gap;
+      });
+      currentY += 5;
+    }
     
     // Analysis
     const finalY = currentY + 5;
@@ -163,7 +203,9 @@ export const handleDownloadDetailedReport = (student: any, allResults: TestResul
     'personality',
     'aptitude_interest',
     'school_major',
-    'anxiety'
+    'anxiety',
+    'iq_wais',
+    'wartegg'
   ];
 
   let currentY = 15;
@@ -206,7 +248,42 @@ export const handleDownloadDetailedReport = (student: any, allResults: TestResul
   doc.text(`Kelas: ${student.className || 'Peserta Umum'}`, 20, currentY);
   currentY += 7;
   doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, currentY);
-  currentY += 15;
+  currentY += 12;
+
+  // Summary Table
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text("RINGKASAN HASIL TES", 20, currentY);
+  currentY += 6;
+
+  const summaryData = targetTests.map((type, index) => {
+    const testsOfType = studentResults.filter(t => t.testType === type).sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+    const latest = testsOfType.length > 0 ? testsOfType[0] : null;
+    return [
+      index + 1,
+      TESTS[type].title,
+      latest ? getShortResult(type, latest.scores) : 'Belum diikuti'
+    ];
+  });
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['No', 'Jenis Tes', 'Hasil Utama']],
+    body: summaryData,
+    theme: 'grid',
+    headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+    styles: { fontSize: 9, cellPadding: 3 },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 80 },
+      2: { cellWidth: 80 }
+    }
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 15;
+  doc.addPage();
+  currentY = 20;
 
   const printMarkdown = (text: string) => {
     const lines = text.split('\n');
@@ -278,9 +355,74 @@ export const handleDownloadDetailedReport = (student: any, allResults: TestResul
       doc.text(`Hasil Utama: ${shortResult}`, 20, currentY);
       currentY += 8;
 
+      if (testType === 'iq_wais') {
+        const verbalScore = latestTest.scores['verbal'] || 0;
+        const perceptualScore = latestTest.scores['perceptual'] || 0;
+        const workingMemoryScore = latestTest.scores['working_memory'] || 0;
+        const processingSpeedScore = latestTest.scores['processing_speed'] || 0;
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Domain Kemampuan', 'Skor', 'Persentase']],
+          body: [
+            ['Pemahaman Verbal', verbalScore, `${Math.round((verbalScore / 34) * 100)}%`],
+            ['Penalaran Perseptual', perceptualScore, `${Math.round((perceptualScore / 22) * 100)}%`],
+            ['Memori Kerja', workingMemoryScore, `${Math.round((workingMemoryScore / 24) * 100)}%`],
+            ['Kecepatan Pemrosesan', processingSpeedScore, `${Math.round((processingSpeedScore / 20) * 100)}%`]
+          ],
+          theme: 'striped',
+          headStyles: { fillColor: [16, 185, 129] },
+          styles: { fontSize: 9 },
+          margin: { left: 20, right: 20 }
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 10;
+      }
+
       const cleanAnalysis = latestTest.analysis.replace(/<\/?[^>]+(>|$)/g, "").replace(/Penjelasan lebih lanjut tentang hasil tes bisa dibaca pada lampiran surat keterangan ini\./g, '');
       printMarkdown(cleanAnalysis);
       currentY += 10;
+
+      if (testType === 'wartegg' && latestTest.extraData?.drawings) {
+        const drawings = latestTest.extraData.drawings;
+        const titles = latestTest.extraData.titles || {};
+        
+        let xPos = 20;
+        let yPos = currentY;
+        const imgSize = 38;
+        const margin = 5;
+
+        [...Array(8)].forEach((_, i) => {
+          if (i > 0 && i % 4 === 0) {
+            xPos = 20;
+            yPos += imgSize + 15;
+            if (yPos > 240) {
+              doc.addPage();
+              yPos = 20;
+            }
+          }
+          
+          if (drawings[i]) {
+            try {
+              doc.addImage(drawings[i], 'PNG', xPos, yPos, imgSize, imgSize);
+            } catch (e) {
+              doc.rect(xPos, yPos, imgSize, imgSize);
+            }
+          } else {
+            doc.rect(xPos, yPos, imgSize, imgSize);
+          }
+          
+          doc.setFontSize(8);
+          doc.setTextColor(30, 41, 59);
+          doc.text(`Kotak ${i+1}`, xPos, yPos + imgSize + 4);
+          doc.setFontSize(7);
+          doc.setTextColor(100, 116, 139);
+          const splitTitle = doc.splitTextToSize(titles[i] || 'Tanpa Judul', imgSize);
+          doc.text(splitTitle, xPos, yPos + imgSize + 8);
+          
+          xPos += imgSize + margin;
+        });
+        currentY = yPos + imgSize + 20;
+      }
     } else {
       doc.setFont("helvetica", "italic");
       doc.setFontSize(10);
@@ -290,35 +432,19 @@ export const handleDownloadDetailedReport = (student: any, allResults: TestResul
     }
   });
 
-  if (currentY > 220) {
-    doc.addPage();
-    currentY = 20;
-  }
-
-  const sigY = currentY + 20;
-  const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-  
-  doc.setFontSize(10);
-  doc.setTextColor(30, 41, 59);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Dicetak pada: ${today}`, 20, sigY - 10);
-  
-  if (!isUmum) {
-    doc.text("Mengetahui,", 160, sigY, { align: 'center' });
-    doc.text("Guru Bimbingan Konseling,", 160, sigY + 5, { align: 'center' });
-    
-    doc.setFont("helvetica", "bold");
-    doc.text(teacherSettings?.name || "(....................................)", 160, sigY + 30, { align: 'center' });
-    doc.setFont("helvetica", "normal");
-    doc.text(`NIP. ${teacherSettings?.nip || "...................................."}`, 160, sigY + 35, { align: 'center' });
-  }
-
+  // Add Page Borders and Footers
   const pageCount = doc.getNumberOfPages();
   for(let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.rect(10, 10, 190, 277);
+    
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
     doc.text(`Dicetak melalui PsikoTest - Halaman ${i} dari ${pageCount}`, 105, 285, { align: 'center' });
+    doc.setFontSize(7);
+    doc.text("DOKUMEN RAHASIA - HANYA UNTUK KEPENTINGAN PENDIDIKAN DAN KONSELING", 105, 290, { align: 'center' });
   }
 
   doc.save(`Laporan_Detail_${student.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -337,6 +463,7 @@ import {
   Heart, 
   GraduationCap,
   ArrowLeft,
+  Bell,
   CheckCircle2,
   Download,
   Upload,
@@ -366,7 +493,8 @@ import {
   Palette,
   Eraser,
   Undo2,
-  Printer
+  Printer,
+  Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -495,16 +623,95 @@ const ConfirmModal = ({ title, message, onConfirm, onCancel }: { title: string, 
   );
 };
 
+const StudentGuideModal = ({ onClose }: { onClose: () => void }) => {
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        className="bg-white rounded-[2.5rem] p-8 max-w-lg w-full shadow-2xl border border-slate-200 relative overflow-hidden"
+      >
+        <div className="absolute top-0 left-0 w-full h-2 bg-emerald-600" />
+        
+        <div className="flex justify-between items-start mb-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-100 p-2 rounded-xl">
+              <BookOpen className="w-6 h-6 text-emerald-600" />
+            </div>
+            <h3 className="text-xl font-black text-slate-900">Panduan Akses Siswa</h3>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div className="flex gap-4">
+            <div className="bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black shrink-0 shadow-lg shadow-emerald-100">1</div>
+            <div>
+              <p className="font-bold text-slate-900 text-sm mb-1">Gunakan Jalur Tanpa Akun Google</p>
+              <p className="text-xs text-slate-500 leading-relaxed">Karena adanya pembatasan usia (di bawah 18 tahun) pada akun Google, silakan klik tombol <span className="text-emerald-600 font-black">"MASUK TANPA AKUN GOOGLE"</span> di halaman utama.</p>
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <div className="bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black shrink-0 shadow-lg shadow-emerald-100">2</div>
+            <div>
+              <p className="font-bold text-slate-900 text-sm mb-1">Pilih Kategori Peserta</p>
+              <p className="text-xs text-slate-500 leading-relaxed">Klik <span className="font-bold">"SISWA TERDAFTAR"</span> jika namamu sudah didaftarkan oleh Guru BK, atau pilih <span className="font-bold">"UMUM"</span> jika kamu peserta dari luar sekolah.</p>
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <div className="bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black shrink-0 shadow-lg shadow-emerald-100">3</div>
+            <div>
+              <p className="font-bold text-slate-900 text-sm mb-1">Lengkapi Data Identitas</p>
+              <p className="text-xs text-slate-500 leading-relaxed">Masukkan nomor NISN_mu dengan benar, agar hasil tes tidak tertukar dengan siswa lain.</p>
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <div className="bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black shrink-0 shadow-lg shadow-emerald-100">4</div>
+            <div>
+              <p className="font-bold text-slate-900 text-sm mb-1">Mulai Tes</p>
+              <p className="text-xs text-slate-500 leading-relaxed">Setelah masuk ke Dashboard, kamu bisa langsung memilih jenis tes yang ingin dikerjakan.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-[10px] text-amber-800 leading-relaxed">
+            <span className="font-black">Tips:</span> Jika layar blank atau gagal masuk, silakan <b>Refresh</b> halaman dengan menekan tombol panah melingkar di pojok kiri atas browser Anda.
+          </p>
+        </div>
+
+        <button 
+          onClick={onClose}
+          className="w-full mt-8 bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg"
+        >
+          SAYA MENGERTI
+        </button>
+      </motion.div>
+    </div>
+  );
+};
+
 // --- Components ---
 
-const Navbar = ({ user, onLogout, onBack, setView, view }: { 
+const Navbar = ({ user, onLogout, onBack, setView, view, notifications, showNotifications, setShowNotifications, markAsRead }: { 
   user: UserProfile | null, 
   onLogout: () => void, 
   onBack?: () => void, 
   setView: (v: any) => void, 
-  view: 'dashboard' | 'admin' | 'guide' | 'create-test' 
+  view: 'dashboard' | 'admin' | 'guide' | 'create-test',
+  notifications: AppNotification[],
+  showNotifications: boolean,
+  setShowNotifications: (v: boolean) => void,
+  markAsRead: (id: string) => void
 }) => {
   const isAdminView = view === 'admin' || view === 'create-test';
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-200">
@@ -518,12 +725,82 @@ const Navbar = ({ user, onLogout, onBack, setView, view }: {
               <span className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-600 tracking-tighter leading-none">
                 PsikoTest
               </span>
-              <img src="https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9" alt="Dutatama Logo" className="h-5 w-auto mt-1 opacity-90" referrerPolicy="no-referrer" />
             </div>
           </div>
           
           {user && (
             <div className="flex items-center gap-5">
+              <img src="https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9" alt="Dutatama Logo" className="h-7 w-auto opacity-90 hidden sm:block" referrerPolicy="no-referrer" />
+              
+              {/* Notifications Bell */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="p-2.5 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100 transition-all relative border border-slate-200"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {showNotifications && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-[100]"
+                    >
+                      <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                        <h4 className="text-sm font-black text-slate-900">Notifikasi</h4>
+                        <div className="flex items-center gap-2">
+                          {unreadCount > 0 && (
+                            <button 
+                              onClick={() => notifications.filter(n => !n.read).forEach(n => n.id && markAsRead(n.id))}
+                              className="text-[10px] font-bold text-slate-500 hover:text-emerald-600 transition-colors"
+                            >
+                              Tandai semua dibaca
+                            </button>
+                          )}
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{unreadCount} Baru</span>
+                        </div>
+                      </div>
+                      <div className="max-h-96 overflow-y-auto">
+                        {notifications.length > 0 ? (
+                          notifications.map((n) => (
+                            <div 
+                              key={n.id} 
+                              onClick={() => n.id && markAsRead(n.id)}
+                              className={cn(
+                                "p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer",
+                                !n.read && "bg-emerald-50/30"
+                              )}
+                            >
+                              <div className="flex justify-between items-start mb-1">
+                                <h5 className="text-xs font-bold text-slate-900">{n.title}</h5>
+                                {!n.read && <div className="w-2 h-2 bg-emerald-600 rounded-full" />}
+                              </div>
+                              <p className="text-[11px] text-slate-500 leading-relaxed">{n.message}</p>
+                              <span className="text-[9px] text-slate-400 mt-2 block">
+                                {n.timestamp ? new Date(n.timestamp.seconds * 1000).toLocaleString('id-ID') : 'Baru saja'}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-8 text-center">
+                            <Bell className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                            <p className="text-xs text-slate-400 font-medium">Tidak ada notifikasi</p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               {(user.role === 'admin' || user.role === 'teacher' || user.email.toLowerCase() === "purnomowiwit@gmail.com") && (
                 <button 
                   onClick={() => setView(isAdminView ? 'dashboard' : 'admin')}
@@ -824,7 +1101,7 @@ const WarteggCanvas = ({ index, onSave, initialData }: { index: number, onSave: 
   );
 };
 
-const WarteggTest = ({ onComplete }: { onComplete: (scores: Record<string, number>) => void }) => {
+const WarteggTest = ({ onComplete }: { onComplete: (scores: Record<string, number>, extraData?: any) => void }) => {
   const [drawings, setDrawings] = useState<Record<number, string>>({});
   const [titles, setTitles] = useState<Record<number, string>>({});
   const [step, setStep] = useState<'drawing' | 'titles'>('drawing');
@@ -873,7 +1150,7 @@ const WarteggTest = ({ onComplete }: { onComplete: (scores: Record<string, numbe
           ))}
         </div>
         <button
-          onClick={() => onComplete({})}
+          onClick={() => onComplete({}, { drawings, titles })}
           disabled={Object.keys(titles).length < 8 || Object.values(titles).some(t => !t.trim())}
           className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-3xl font-black shadow-xl shadow-emerald-100 transition-all text-lg tracking-tight"
         >
@@ -1003,7 +1280,7 @@ const WarteggTest = ({ onComplete }: { onComplete: (scores: Record<string, numbe
   );
 };
 
-const TestForm = ({ type, customTest, onComplete, onCancel, isAnalyzingTest }: { type: TestType, customTest?: any, onComplete: (scores: Record<string, number>) => void, onCancel: () => void, isAnalyzingTest?: boolean }) => {
+const TestForm = ({ type, customTest, onComplete, onCancel, isAnalyzingTest }: { type: TestType, customTest?: any, onComplete: (scores: Record<string, number>, extraData?: any) => void, onCancel: () => void, isAnalyzingTest?: boolean }) => {
   const test = customTest || TESTS[type];
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -1255,7 +1532,77 @@ const ResultView = ({ result, onBack, showToast, teacherSettings }: { result: Te
           </div>
         );
 
+      case 'wartegg':
+        const drawings = result.extraData?.drawings || {};
+        const titles = result.extraData?.titles || {};
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
+                <div className="w-full aspect-square bg-slate-50 rounded-lg border border-slate-100 overflow-hidden mb-2">
+                  {drawings[i] ? (
+                    <img src={drawings[i]} className="w-full h-full object-contain" referrerPolicy="no-referrer" alt={`Wartegg ${i+1}`} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-300">
+                      <Palette className="w-6 h-6" />
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kotak {i + 1}</p>
+                <p className="text-[11px] font-bold text-slate-700 text-center line-clamp-1">{titles[i] || 'Tanpa Judul'}</p>
+              </div>
+            ))}
+          </div>
+        );
+
       default:
+        if (result.visualizationType === 'pie') {
+          return (
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        }
+        if (result.visualizationType === 'radar') {
+          return (
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
+                  <PolarGrid />
+                  <PolarAngleAxis dataKey="name" />
+                  <PolarRadiusAxis />
+                  <Radar
+                    name="Skor"
+                    dataKey="value"
+                    stroke="#4f46e5"
+                    fill="#4f46e5"
+                    fillOpacity={0.6}
+                  />
+                  <Tooltip />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        }
         return (
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -1378,6 +1725,48 @@ Berikan penjelasan yang lebih mendalam, personal, dan memotivasi untuk siswa ini
     currentY += 7;
     doc.text(`Tanggal Tes: ${new Date(result.timestamp?.seconds * 1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, currentY);
     currentY += 16;
+
+    if (result.testType === 'wartegg' && result.extraData?.drawings) {
+      const drawings = result.extraData.drawings;
+      const titles = result.extraData.titles || {};
+      
+      let xPos = 20;
+      let yPos = currentY;
+      const imgSize = 38;
+      const margin = 5;
+
+      [...Array(8)].forEach((_, i) => {
+        if (i > 0 && i % 4 === 0) {
+          xPos = 20;
+          yPos += imgSize + 15;
+          if (yPos > 240) {
+            doc.addPage();
+            yPos = 20;
+          }
+        }
+        
+        if (drawings[i]) {
+          try {
+            doc.addImage(drawings[i], 'PNG', xPos, yPos, imgSize, imgSize);
+          } catch (e) {
+            doc.rect(xPos, yPos, imgSize, imgSize);
+          }
+        } else {
+          doc.rect(xPos, yPos, imgSize, imgSize);
+        }
+        
+        doc.setFontSize(8);
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Kotak ${i+1}`, xPos, yPos + imgSize + 4);
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        const splitTitle = doc.splitTextToSize(titles[i] || 'Tanpa Judul', imgSize);
+        doc.text(splitTitle, xPos, yPos + imgSize + 8);
+        
+        xPos += imgSize + margin;
+      });
+      currentY = yPos + imgSize + 20;
+    }
     
     // AI Explanation
     doc.setFontSize(12);
@@ -1578,6 +1967,7 @@ const TestCreator = ({ onBack, showToast }: { onBack: () => void, showToast: (m:
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [testCategory, setTestCategory] = useState('');
+  const [visualizationType, setVisualizationType] = useState<'bar' | 'pie' | 'radar'>('bar');
   const [questions, setQuestions] = useState<Question[]>([
     { id: 'q1', text: '', options: [{ text: '', value: '', score: 1 }] }
   ]);
@@ -1695,6 +2085,7 @@ const TestCreator = ({ onBack, showToast }: { onBack: () => void, showToast: (m:
         title,
         description,
         testType: testCategory || 'custom',
+        visualizationType,
         questions,
         aiRecommendation,
         createdAt: serverTimestamp(),
@@ -1750,6 +2141,18 @@ const TestCreator = ({ onBack, showToast }: { onBack: () => void, showToast: (m:
                 placeholder="Contoh: Kepribadian, Minat Bakat, dll"
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-600 outline-none text-sm"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">Jenis Visualisasi Hasil</label>
+              <select 
+                value={visualizationType}
+                onChange={(e) => setVisualizationType(e.target.value as 'bar' | 'pie' | 'radar')}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-600 outline-none text-sm"
+              >
+                <option value="bar">Diagram Batang</option>
+                <option value="pie">Diagram Pie</option>
+                <option value="radar">Diagram Radar</option>
+              </select>
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-700 mb-1.5">Deskripsi</label>
@@ -2425,7 +2828,12 @@ const TestRecap = ({ results, classes, students, teacherSettings, onEdit, onDele
   );
 };
 
-const ManajemenTamu = ({ users, classes }: { users: any[], classes: ClassInfo[] }) => {
+const ManajemenTamu = ({ users, classes, setEditingStudent, setConfirmDelete }: { 
+  users: any[], 
+  classes: ClassInfo[],
+  setEditingStudent: (s: any) => void,
+  setConfirmDelete: (data: any) => void
+}) => {
   const [search, setSearch] = useState('');
   const registeredClassNames = classes.map(c => c.name);
   
@@ -2475,6 +2883,7 @@ const ManajemenTamu = ({ users, classes }: { users: any[], classes: ClassInfo[] 
                 <th className="px-6 py-4 whitespace-nowrap">Nama Peserta</th>
                 <th className="px-6 py-4 whitespace-nowrap">Jenjang</th>
                 <th className="px-6 py-4 whitespace-nowrap">Nama Sekolah/ Alamat</th>
+                <th className="px-6 py-4 whitespace-nowrap text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -2491,11 +2900,41 @@ const ManajemenTamu = ({ users, classes }: { users: any[], classes: ClassInfo[] 
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                       {g.nisn || '-'}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => setEditingStudent({
+                            id: g.uid,
+                            name: g.name,
+                            nisn: g.nisn || '',
+                            className: g.className || 'UMUM',
+                            number: '0'
+                          })}
+                          className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Edit Peserta"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setConfirmDelete({ 
+                            type: 'guest', 
+                            id: g.uid, 
+                            title: 'Hapus Peserta Umum',
+                            message: `Apakah Anda yakin ingin menghapus data peserta umum ${g.name}?`,
+                            extraData: { name: g.name }
+                          })}
+                          className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="Hapus Peserta"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-slate-400 text-sm">
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400 text-sm">
                     Tidak ada data peserta umum ditemukan.
                   </td>
                 </tr>
@@ -3278,14 +3717,78 @@ const HasilTesTamu = ({ results, classes, users, teacherSettings, onDelete }: {
                   <td className="px-4 py-3 border-r border-slate-100 text-sm text-slate-600">
                     {g.nisn || '-'}
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['learning_style']}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['personality']}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['multiple_intelligences']}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['aptitude_interest']}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['school_major']}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['anxiety']}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['iq_wais']}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 text-center border-r border-slate-100 font-medium">{g.latestTests['wartegg']}</td>
+                  <td className="px-4 py-3 text-center border-r border-slate-100">
+                    {g.latestTests['learning_style'] !== '-' ? (
+                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100 whitespace-nowrap">
+                        {g.latestTests['learning_style']}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center border-r border-slate-100">
+                    {g.latestTests['personality'] !== '-' ? (
+                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100 whitespace-nowrap">
+                        {g.latestTests['personality']}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center border-r border-slate-100">
+                    {g.latestTests['multiple_intelligences'] !== '-' ? (
+                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100 whitespace-nowrap">
+                        {g.latestTests['multiple_intelligences']}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center border-r border-slate-100">
+                    {g.latestTests['aptitude_interest'] !== '-' ? (
+                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100 whitespace-nowrap">
+                        {g.latestTests['aptitude_interest']}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center border-r border-slate-100">
+                    {g.latestTests['school_major'] !== '-' ? (
+                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100 whitespace-nowrap">
+                        {g.latestTests['school_major']}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center border-r border-slate-100">
+                    {g.latestTests['anxiety'] !== '-' ? (
+                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100 whitespace-nowrap">
+                        {g.latestTests['anxiety']}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center border-r border-slate-100">
+                    {g.latestTests['iq_wais'] !== '-' ? (
+                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100 whitespace-nowrap">
+                        {g.latestTests['iq_wais']}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center border-r border-slate-100">
+                    {g.latestTests['wartegg'] !== '-' ? (
+                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg inline-block border border-emerald-100 whitespace-nowrap">
+                        {g.latestTests['wartegg']}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button 
@@ -3322,11 +3825,23 @@ const HasilTesTamu = ({ results, classes, users, teacherSettings, onDelete }: {
   );
 };
 
-const AdminDashboard = ({ results, classes, students, teacherSettings, user, setView, showToast, setTestResult, allUsers }: { results: TestResult[], classes: ClassInfo[], students: StudentData[], teacherSettings: TeacherSettings | null, user: UserProfile, setView: (v: any) => void, showToast: (m: string, t?: 'success' | 'error' | 'info') => void, setTestResult: (r: TestResult | null) => void, allUsers: any[] }) => {
+const AdminDashboard = ({ results: rawResults, classes, students, teacherSettings, user, setView, showToast, setTestResult, allUsers, notifications }: { results: TestResult[], classes: ClassInfo[], students: StudentData[], teacherSettings: TeacherSettings | null, user: UserProfile, setView: (v: any) => void, showToast: (m: string, t?: 'success' | 'error' | 'info') => void, setTestResult: (r: TestResult | null) => void, allUsers: any[], notifications: AppNotification[] }) => {
+  // Deduplicate results to handle potential duplicate data (same student, same test, same timestamp)
+  const results = rawResults.filter((r, index, self) => 
+    index === self.findIndex((t) => (
+      t.studentName === r.studentName && 
+      t.studentClass === r.studentClass && 
+      t.testType === r.testType && 
+      t.timestamp?.seconds === r.timestamp?.seconds
+    ))
+  );
+
   const [selectedClass, setSelectedClass] = useState<string>(() => localStorage.getItem('adminSelectedClass') || 'all');
   const [filterName, setFilterName] = useState('');
   const [filterType, setFilterType] = useState<string>(() => localStorage.getItem('adminFilterType') || 'all');
   const [filterDate, setFilterDate] = useState('');
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
   const [tableClassFilter, setTableClassFilter] = useState<string>(() => localStorage.getItem('adminTableClassFilter') || 'all');
   const [tableTypeFilter, setTableTypeFilter] = useState<string>(() => localStorage.getItem('adminTableTypeFilter') || 'all');
   const [historySearch, setHistorySearch] = useState('');
@@ -3334,9 +3849,15 @@ const AdminDashboard = ({ results, classes, students, teacherSettings, user, set
   const [tamuSearch, setTamuSearch] = useState('');
   const [tamuTypeFilter, setTamuTypeFilter] = useState<string>(() => localStorage.getItem('adminTamuTypeFilter') || 'all');
   const [tamuDate, setTamuDate] = useState('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'students' | 'teacher' | 'report' | 'recap' | 'tamu' | 'recap-tamu' | 'monitor' | 'hasil-tes' | 'manajemen-tamu' | 'hasil-tes-tamu'>(() => (localStorage.getItem('adminActiveTab') as any) || 'dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'students' | 'teacher' | 'report' | 'recap' | 'tamu' | 'recap-tamu' | 'monitor' | 'hasil-tes' | 'manajemen-tamu' | 'hasil-tes-tamu' | 'notifications'>(() => (localStorage.getItem('adminActiveTab') as any) || 'dashboard');
+  
+  // Notification states
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifMessage, setNotifMessage] = useState('');
+  const [notifTarget, setNotifTarget] = useState<'all' | string>('all');
+  const [isSendingNotif, setIsSendingNotif] = useState(false);
   const [editingStudent, setEditingStudent] = useState<StudentData | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string, type: 'student' | 'result' | 'all_students' | 'results_by_student' | 'results_by_guest', title: string, message: string, extraData?: any } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string, type: 'student' | 'guest' | 'result' | 'all_students' | 'results_by_student' | 'results_by_guest', title: string, message: string, extraData?: any } | null>(null);
   const [classAnalysis, setClassAnalysis] = useState('');
   const [isGeneratingClassAnalysis, setIsGeneratingClassAnalysis] = useState(false);
 
@@ -3453,9 +3974,22 @@ const AdminDashboard = ({ results, classes, students, teacherSettings, user, set
     }
   };
 
-  const handleDeleteAllResultsForGuest = async (name: string) => {
+  const handleDeleteGuest = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'users', id));
+      setConfirmDelete(null);
+      showToast('Data peserta umum berhasil dihapus.', 'success');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
+    }
+  };
+
+  const handleDeleteAllResultsForGuest = async (id: string, name: string) => {
     const registeredClassNames = classes.map(c => c.name);
-    const guestResults = results.filter(r => !registeredClassNames.includes(r.studentClass) && r.studentName === name);
+    const guestResults = results.filter(r => 
+      !registeredClassNames.includes(r.studentClass) && 
+      (r.studentId === id || r.studentName === name)
+    );
     try {
       const batch = guestResults.map(r => deleteDoc(doc(db, 'test_results', r.id!)));
       await Promise.all(batch);
@@ -3474,7 +4008,8 @@ const AdminDashboard = ({ results, classes, students, teacherSettings, user, set
       : r.studentClass === selectedClass;
     const matchesName = r.studentName.toLowerCase().includes(filterName.toLowerCase());
     const matchesType = filterType === 'all' || r.testType === filterType;
-    const matchesDate = !filterDate || new Date(r.timestamp?.seconds * 1000).toLocaleDateString() === new Date(filterDate).toLocaleDateString();
+    const matchesDate = (!reportStartDate || new Date(r.timestamp?.seconds * 1000) >= new Date(reportStartDate)) &&
+                        (!reportEndDate || new Date(r.timestamp?.seconds * 1000) <= new Date(reportEndDate));
     return matchesClass && matchesName && matchesType && matchesDate;
   });
 
@@ -3550,6 +4085,94 @@ const AdminDashboard = ({ results, classes, students, teacherSettings, user, set
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'students');
     }
+  };
+
+  const handleDownloadClassReport = () => {
+    const reportResults = filteredResults.filter(r => filterType === 'all' || r.testType === filterType);
+    if (reportResults.length === 0) {
+      showToast('Tidak ada data untuk dicetak.', 'info');
+      return;
+    }
+
+    const doc = new jsPDF();
+    const testTitle = filterType === 'all' ? 'Semua Tes' : TESTS[filterType as TestType]?.title || filterType;
+    const className = selectedClass === 'all' ? 'Semua Kelas' : selectedClass;
+    
+    let currentY = 15;
+
+    // Kop Surat
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text(teacherSettings?.pemdaName?.toUpperCase() || "PEMERINTAH PROVINSI / KOTA", 105, currentY, { align: 'center' });
+    currentY += 7;
+    doc.text(teacherSettings?.dinasName?.toUpperCase() || "DINAS PENDIDIKAN", 105, currentY, { align: 'center' });
+    currentY += 8;
+    doc.setFontSize(14);
+    doc.text(teacherSettings?.schoolName?.toUpperCase() || "NAMA SEKOLAH ANDA DISINI", 105, currentY, { align: 'center' });
+    currentY += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(teacherSettings?.schoolAddress || "Alamat Lengkap Sekolah, No. Telp, Website, Email", 105, currentY, { align: 'center' });
+    currentY += 4;
+    doc.line(20, currentY, 190, currentY);
+    currentY += 1;
+    doc.line(20, currentY, 190, currentY);
+    currentY += 14;
+
+    // Header
+    doc.setFontSize(16);
+    doc.setTextColor(79, 70, 229);
+    doc.setFont("helvetica", "bold");
+    doc.text("LAPORAN AGREGAT HASIL TES PSIKOLOGI", 105, currentY, { align: 'center' });
+    currentY += 10;
+    
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`${testTitle.toUpperCase()} - ${className.toUpperCase()}`, 105, currentY, { align: 'center' });
+    currentY += 15;
+
+    // Info
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Jumlah Partisipan: ${reportResults.length} Siswa`, 20, currentY);
+    currentY += 7;
+    doc.text(`Periode: ${reportStartDate || 'Awal'} s/d ${reportEndDate || 'Sekarang'}`, 20, currentY);
+    currentY += 12;
+
+    // Table
+    const tableData = reportResults.map((r, i) => [
+      i + 1,
+      r.studentName,
+      r.studentClass,
+      new Date(r.timestamp?.seconds * 1000).toLocaleDateString('id-ID'),
+      getShortResult(r.testType, r.scores)
+    ]);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['No', 'Nama Siswa', 'Kelas', 'Tanggal', 'Hasil Utama']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 3 },
+    });
+
+    // Signatures
+    const sigY = (doc as any).lastAutoTable.finalY + 20;
+    const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.text("Mengetahui,", 160, sigY, { align: 'center' });
+    doc.text("Guru Bimbingan Konseling,", 160, sigY + 5, { align: 'center' });
+    
+    doc.setFont("helvetica", "bold");
+    doc.text(teacherSettings?.name || "(....................................)", 160, sigY + 30, { align: 'center' });
+    doc.setFont("helvetica", "normal");
+    doc.text(`NIP. ${teacherSettings?.nip || "...................................."}`, 160, sigY + 35, { align: 'center' });
+
+    doc.save(`Laporan_Kelas_${className}_${testTitle}.pdf`);
   };
 
   const handleDownloadTemplate = () => {
@@ -3673,6 +4296,32 @@ const AdminDashboard = ({ results, classes, students, teacherSettings, user, set
 
   const classComparisonData = getComparisonData();
 
+  const handleSendNotification = async () => {
+    if (!notifTitle || !notifMessage) {
+      showToast('Judul dan pesan notifikasi wajib diisi.', 'error');
+      return;
+    }
+
+    setIsSendingNotif(true);
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        userId: notifTarget,
+        title: notifTitle,
+        message: notifMessage,
+        type: 'info',
+        read: false,
+        timestamp: serverTimestamp()
+      });
+      setNotifTitle('');
+      setNotifMessage('');
+      showToast('Notifikasi berhasil dikirim!', 'success');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'notifications');
+    } finally {
+      setIsSendingNotif(false);
+    }
+  };
+
   const handleGenerateClassAnalysis = async () => {
     if (filterType === 'all') {
       showToast('Pilih jenis tes terlebih dahulu untuk membuat analisis kelas.', 'info');
@@ -3685,22 +4334,24 @@ const AdminDashboard = ({ results, classes, students, teacherSettings, user, set
       let prompt = `Berdasarkan data agregat hasil tes psikologi untuk kelas berikut:
 Kelas: ${selectedClass === 'all' ? 'Semua Kelas' : selectedClass}
 Jenis Tes: ${TESTS[filterType as TestType]?.title || filterType}
+Periode: ${reportStartDate ? reportStartDate : 'Awal'} sampai ${reportEndDate ? reportEndDate : 'Sekarang'}
 Distribusi Rata-rata Skor: ${JSON.stringify(classChartData)}
 ${selectedClass === 'all' ? `Perbandingan Rata-rata Skor Antar Kelas: ${JSON.stringify(classComparisonData)}` : ''}
 
-Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes tersebut. ${selectedClass === 'all' ? 'Fokuskan pada tren kinerja antar kelas dan bandingkan performanya.' : ''} Apa kekuatan utama kelas ini? Apa area yang perlu mendapat perhatian lebih dari guru? Berikan rekomendasi strategi pembelajaran atau pendekatan bimbingan yang cocok untuk mayoritas siswa di kelas ini. Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown yang rapi.`;
+Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes tersebut. ${selectedClass === 'all' ? 'Fokuskan pada tren kinerja antar kelas dan bandingkan performanya.' : ''} Apa kekuatan utama kelas ini? Apa area yang perlu mendapat perhatian lebih dari guru? Berikan rekomendasi strategi pembelajaran atau pendekatan bimbingan yang cocok untuk mayoritas siswa di kelas ini. Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown yang rapi. Sertakan ringkasan temuan utama dan saran yang dapat ditindaklanjuti.`;
 
       if (filterType === 'iq_wais') {
          prompt = `Berdasarkan data agregat hasil tes IQ WAIS untuk kelas berikut:
 Kelas: ${selectedClass === 'all' ? 'Semua Kelas' : selectedClass}
 Jenis Tes: ${TESTS[filterType as TestType]?.title || filterType}
+Periode: ${reportStartDate ? reportStartDate : 'Awal'} sampai ${reportEndDate ? reportEndDate : 'Sekarang'}
 Rata-rata Skor Subtes (Verbal, Perseptual, Memori Kerja): ${JSON.stringify(classChartData)}
 
 Berikan analisis mendalam mengenai profil kognitif kelas ini berdasarkan rata-rata skor subtes tersebut. 
 - Kekuatan kognitif utama kelas ini (misalnya: apakah lebih kuat di verbal, perseptual, atau memori kerja?)
 - Area kognitif yang perlu mendapat perhatian lebih.
 - Rekomendasi strategi pembelajaran yang disesuaikan dengan profil kognitif kelas ini (misalnya: jika kuat di verbal, gunakan metode diskusi; jika kuat di perseptual, gunakan media visual).
-Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown yang rapi.`;
+Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown yang rapi. Sertakan ringkasan temuan utama dan saran yang dapat ditindaklanjuti.`;
       }
 
       const response = await ai.models.generateContent({
@@ -3769,6 +4420,12 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
       <div className="w-[17%] min-w-[260px] bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-950 text-white flex flex-col shadow-2xl z-10">
         <div className="p-6 border-b border-emerald-700/50 bg-gradient-to-br from-emerald-500/20 to-transparent">
           <h2 className="text-2xl font-black tracking-tight truncate text-emerald-50">PsikoTest</h2>
+          {teacherName && (
+            <div className="mt-3 pt-3 border-t border-emerald-700/50">
+              <p className="text-[10px] font-black text-white uppercase tracking-wider leading-tight">{teacherName}</p>
+              <p className="text-[9px] font-medium text-emerald-200/70 truncate leading-tight">{schoolName || 'Sekolah'}</p>
+            </div>
+          )}
           <div className="mt-3 flex justify-start">
             <img src="https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9" alt="Dutatama Logo" className="w-32 h-auto opacity-90 hover:opacity-100 transition-opacity cursor-pointer" referrerPolicy="no-referrer" />
           </div>
@@ -3795,6 +4452,9 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
           </button>
           <button onClick={() => setActiveTab('report')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'report' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
             <BarChart3 className="w-4 h-4" /> LAPORAN KELAS
+          </button>
+          <button onClick={() => setActiveTab('notifications')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'notifications' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-500/30" : "text-emerald-100/70 hover:bg-emerald-800/50 hover:text-white")}>
+            <Bell className="w-4 h-4" /> KIRIM NOTIFIKASI
           </button>
           <button onClick={() => setActiveTab('manajemen-tamu')} className={cn("w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-black transition-all tracking-wide cursor-pointer", activeTab === 'manajemen-tamu' ? "bg-amber-900/60 text-[#FFC30B] shadow-lg shadow-amber-950/40 border border-[#FFC30B]/30" : "text-[#FFC30B] hover:bg-amber-900/40")}>
             <Users className="w-4 h-4" /> MANAJEMEN PESERTA UMUM
@@ -3824,7 +4484,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
         <div className="max-w-6xl mx-auto space-y-8">
           {/* Header Title based on activeTab */}
           <div className="bg-emerald-500 p-6 rounded-2xl border border-emerald-600 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
+            <div className="flex items-center gap-6">
               <h2 className="text-2xl font-black text-white tracking-tight">
                 {activeTab === 'dashboard' && 'Dashboard Utama'}
                 {activeTab === 'history' && 'Riwayat Tes Siswa'}
@@ -3839,21 +4499,16 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                 {activeTab === 'monitor' && 'Monitor Siswa'}
                 {activeTab === 'hasil-tes' && 'Hasil Tes Psikologi'}
               </h2>
-              <p className="text-sm text-emerald-50 mt-1 font-medium">
-                {activeTab === 'dashboard' && 'Ringkasan statistik dan distribusi tes.'}
-                {activeTab === 'history' && 'Daftar lengkap hasil tes siswa beserta filter pencarian.'}
-                {activeTab === 'students' && 'Kelola data siswa, tambah, edit, atau hapus.'}
-                {activeTab === 'teacher' && 'Pengaturan profil Guru BK untuk laporan.'}
-                {activeTab === 'report' && 'Analisis hasil tes per kelas dengan bantuan AI.'}
-                {activeTab === 'recap' && 'Rekapitulasi seluruh hasil tes siswa dalam bentuk tabel.'}
-                {activeTab === 'recap-tamu' && 'Tabel rekapitulasi hasil tes peserta umum.'}
-                {activeTab === 'hasil-tes-tamu' && 'Rangkuman hasil akhir seluruh tes psikologi peserta umum.'}
-                {activeTab === 'manajemen-tamu' && 'Kelola data peserta umum yang tidak terdaftar di Manajemen Siswa.'}
-                {activeTab === 'tamu' && 'Kelola riwayat hasil tes untuk peserta umum.'}
-                {activeTab === 'monitor' && 'Pantau status pengerjaan tes siswa.'}
-                {activeTab === 'hasil-tes' && 'Rangkuman hasil akhir seluruh tes psikologi siswa.'}
-              </p>
+              {teacherName && (
+                <div className="border-l border-emerald-400 pl-6 hidden sm:block">
+                  <p className="text-xs font-black text-white uppercase tracking-wider leading-tight">{teacherName}</p>
+                  <p className="text-[10px] font-medium text-emerald-100 truncate max-w-[200px] leading-tight">{schoolName || 'Sekolah'}</p>
+                </div>
+              )}
             </div>
+            <button onClick={() => setView('student-login')} className="px-6 py-2.5 bg-white text-emerald-600 rounded-xl text-xs font-black hover:bg-emerald-50 transition-all shadow-lg shadow-emerald-900/20">
+              MENU SISWA
+            </button>
           </div>
 
           {activeTab === 'dashboard' && (
@@ -4122,7 +4777,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     <Download className="w-4 h-4" /> TEMPLATE
                   </button>
                   <label className="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-bold text-xs hover:bg-emerald-100 flex items-center gap-2 cursor-pointer transition-colors">
-                    <Upload className="w-4 h-4" /> UPLOAD
+                    <Upload className="w-4 h-4" /> UPLOAD TEMPLATE
                     <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleUploadStudents} />
                   </label>
                   <button 
@@ -4361,6 +5016,115 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
             </motion.div>
           )}
 
+          {activeTab === 'notifications' && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
+                    <Bell className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900">Kirim Notifikasi Baru</h3>
+                    <p className="text-sm text-slate-500 font-medium">Kirim pengingat atau informasi penting kepada siswa.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Judul Notifikasi</label>
+                      <input 
+                        type="text"
+                        value={notifTitle}
+                        onChange={(e) => setNotifTitle(e.target.value)}
+                        placeholder="Contoh: Selesaikan Tes Minat Bakat"
+                        className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 focus:ring-0 transition-all outline-none font-bold text-slate-700"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Target Penerima</label>
+                      <select 
+                        value={notifTarget}
+                        onChange={(e) => setNotifTarget(e.target.value)}
+                        className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 focus:ring-0 transition-all outline-none font-bold text-slate-700"
+                      >
+                        <option value="all">Semua Siswa</option>
+                        {classes.map(c => (
+                          <option key={c.id} value={`class:${c.name}`}>Siswa Kelas {c.name}</option>
+                        ))}
+                        <optgroup label="Siswa Individu">
+                          {students.map(s => (
+                            <option key={s.id} value={s.id}>{s.name} ({s.className})</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Pesan Notifikasi</label>
+                      <textarea 
+                        value={notifMessage}
+                        onChange={(e) => setNotifMessage(e.target.value)}
+                        placeholder="Tulis pesan pengingat di sini..."
+                        rows={5}
+                        className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 focus:ring-0 transition-all outline-none font-bold text-slate-700 resize-none"
+                      />
+                    </div>
+
+                    <button 
+                      onClick={handleSendNotification}
+                      disabled={isSendingNotif}
+                      className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isSendingNotif ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                      KIRIM NOTIFIKASI SEKARANG
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                <h4 className="font-black text-slate-800 text-lg tracking-tight mb-6">Riwayat Notifikasi Terkirim</h4>
+                <div className="space-y-4">
+                  {notifications.length > 0 ? (
+                    notifications.map((n) => (
+                      <div key={n.id} className="p-4 border border-slate-100 rounded-2xl flex items-start justify-between gap-4 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-start gap-4">
+                          <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center shrink-0">
+                            <Bell className="w-5 h-5 text-slate-400" />
+                          </div>
+                          <div>
+                            <h5 className="text-sm font-bold text-slate-900">{n.title}</h5>
+                            <p className="text-xs text-slate-500 mt-1">{n.message}</p>
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                {n.timestamp ? new Date(n.timestamp.seconds * 1000).toLocaleString('id-ID') : 'Baru saja'}
+                              </span>
+                              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase tracking-tighter">
+                                Target: {n.userId === 'all' ? 'Semua Siswa' : n.userId.startsWith('class:') ? `Kelas ${n.userId.split(':')[1]}` : 'Individu'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <p className="text-slate-400 font-bold italic">Belum ada riwayat notifikasi.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {activeTab === 'teacher' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm max-w-3xl space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -4560,7 +5324,14 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                   <h3 className="text-xl font-black text-slate-900">Laporan Agregat: {selectedClass === 'all' ? 'Semua Kelas' : selectedClass}</h3>
                   <p className="text-sm text-slate-500 mt-1 font-medium">{filteredResults.filter(r => filterType === 'all' || r.testType === filterType).length} Data Tersedia</p>
                 </div>
-                <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button 
+                    onClick={handleDownloadClassReport}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs hover:bg-emerald-700 flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/20"
+                  >
+                    <Printer className="w-4 h-4" /> CETAK LAPORAN
+                  </button>
+                  <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
                   <div className="flex items-center gap-2 px-2">
                     <Filter className="w-4 h-4 text-slate-400" />
                     <select 
@@ -4573,6 +5344,23 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                         <option key={type} value={type}>{TESTS[type as TestType].title}</option>
                       ))}
                     </select>
+                  </div>
+                  <div className="w-px h-6 bg-slate-200"></div>
+                  <div className="flex items-center gap-2 px-2">
+                    <Calendar className="w-4 h-4 text-slate-400" />
+                    <input 
+                      type="date" 
+                      value={reportStartDate}
+                      onChange={(e) => setReportStartDate(e.target.value)}
+                      className="bg-transparent border-none focus:ring-0 text-xs font-bold text-slate-700 py-1 outline-none"
+                    />
+                    <span className="text-slate-400">-</span>
+                    <input 
+                      type="date" 
+                      value={reportEndDate}
+                      onChange={(e) => setReportEndDate(e.target.value)}
+                      className="bg-transparent border-none focus:ring-0 text-xs font-bold text-slate-700 py-1 outline-none"
+                    />
                   </div>
                   <div className="w-px h-6 bg-slate-200"></div>
                   <div className="flex items-center gap-2 px-2">
@@ -4590,6 +5378,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                   </div>
                 </div>
               </div>
+            </div>
 
               {filterType === 'all' ? (
                 <div className="py-16 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
@@ -4690,30 +5479,24 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                     </div>
                     <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between mb-8">
-                        <h4 className="font-black text-slate-800 text-lg tracking-tight">Proporsi Dominan</h4>
+                        <h4 className="font-black text-slate-800 text-lg tracking-tight">Profil Kemampuan (Radar)</h4>
                         <div className="p-2 bg-slate-50 rounded-lg">
-                          <PieChartIcon className="w-4 h-4 text-slate-400" />
+                          <Brain className="w-4 h-4 text-slate-400" />
                         </div>
                       </div>
                       <div className="h-80 w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={classChartData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={70}
-                              outerRadius={100}
-                              paddingAngle={8}
+                          <RadarChart cx="50%" cy="50%" outerRadius="80%" data={classChartData}>
+                            <PolarGrid stroke="#e2e8f0" />
+                            <PolarAngleAxis dataKey="name" fontSize={10} tick={{fill: '#64748b', fontWeight: 600}} />
+                            <PolarRadiusAxis angle={30} domain={[0, 100]} />
+                            <Radar
+                              name="Rata-rata Skor"
                               dataKey="value"
-                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                              fontSize={10}
-                              stroke="none"
-                            >
-                              {classChartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
+                              stroke="#4f46e5"
+                              fill="#4f46e5"
+                              fillOpacity={0.6}
+                            />
                             <Tooltip 
                               contentStyle={{ 
                                 borderRadius: '16px', 
@@ -4722,13 +5505,7 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
                                 padding: '12px'
                               }} 
                             />
-                            <Legend 
-                              verticalAlign="bottom" 
-                              height={36} 
-                              iconType="circle"
-                              wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', paddingTop: '20px' }} 
-                            />
-                          </PieChart>
+                          </RadarChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
@@ -4913,7 +5690,12 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
 
           {activeTab === 'manajemen-tamu' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-              <ManajemenTamu users={allUsers} classes={classes} />
+              <ManajemenTamu 
+                users={allUsers} 
+                classes={classes} 
+                setEditingStudent={setEditingStudent}
+                setConfirmDelete={setConfirmDelete}
+              />
             </motion.div>
           )}
 
@@ -5154,10 +5936,11 @@ Gunakan bahasa Indonesia yang profesional, mudah dipahami, dan format Markdown y
           onCancel={() => setConfirmDelete(null)}
           onConfirm={() => {
             if (confirmDelete.type === 'student') handleDeleteStudent(confirmDelete.id);
+            else if (confirmDelete.type === 'guest') handleDeleteGuest(confirmDelete.id);
             else if (confirmDelete.type === 'result') handleDeleteResult(confirmDelete.id);
             else if (confirmDelete.type === 'all_students') handleDeleteAllStudents();
             else if (confirmDelete.type === 'results_by_student') handleDeleteAllResultsForStudent(confirmDelete.id, confirmDelete.extraData.name, confirmDelete.extraData.className);
-            else if (confirmDelete.type === 'results_by_guest') handleDeleteAllResultsForGuest(confirmDelete.id);
+            else if (confirmDelete.type === 'results_by_guest') handleDeleteAllResultsForGuest(confirmDelete.id, confirmDelete.extraData.name);
           }}
         />
       )}
@@ -5589,6 +6372,8 @@ export default function App() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [view, setView] = useState<'dashboard' | 'admin' | 'guide' | 'create-test'>('dashboard');
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type });
@@ -5599,6 +6384,7 @@ export default function App() {
   const [initialIdentityStep, setInitialIdentityStep] = useState<'initial' | 'registered' | 'studentCard' | 'guest'>('initial');
   const [profileData, setProfileData] = useState({ name: '', className: '' });
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showStudentGuide, setShowStudentGuide] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -5704,6 +6490,26 @@ export default function App() {
         handleFirestoreError(error, OperationType.LIST, 'students');
       });
 
+      const unsubCustomTests = onSnapshot(collection(db, 'custom_tests'), (snapshot) => {
+        setCustomTests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+
+      const notifTargets = [user.uid, 'all'];
+      if (user.role === 'student' && user.className) {
+        notifTargets.push(`class:${user.className}`);
+      }
+
+      const qNotif = query(
+        collection(db, 'notifications'),
+        where('userId', 'in', notifTargets),
+        orderBy('timestamp', 'desc')
+      );
+      const unsubNotifications = onSnapshot(qNotif, (snapshot) => {
+        setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppNotification)));
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'notifications');
+      });
+
       if (user.role === 'teacher' || user.role === 'admin') {
         const qAll = query(collection(db, 'test_results'), orderBy('timestamp', 'desc'));
         const unsubResults = onSnapshot(qAll, (snapshot) => {
@@ -5716,10 +6522,6 @@ export default function App() {
           if (doc.exists()) {
             setTeacherSettings(doc.data() as TeacherSettings);
           }
-        });
-
-        const unsubCustomTests = onSnapshot(collection(db, 'custom_tests'), (snapshot) => {
-          setCustomTests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
         const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
@@ -5735,20 +6537,39 @@ export default function App() {
           unsubTeacherSettings();
           unsubCustomTests();
           unsubUsers();
+          unsubNotifications();
         };
       }
-
-      const unsubCustomTests = onSnapshot(collection(db, 'custom_tests'), (snapshot) => {
-        setCustomTests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      });
 
       return () => {
         unsubUserResults();
         unsubStudents();
         unsubCustomTests();
+        unsubNotifications();
       };
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user && user.role === 'student' && customTests.length > 0 && userResults.length >= 0) {
+      const unfinishedTests = customTests.filter(ct => 
+        ct.isActive && !userResults.some(ur => ur.testType === ct.testType)
+      );
+
+      if (unfinishedTests.length > 0) {
+        // We could add a notification to the state or just show a toast
+        // For now, let's just make sure they see it in the dashboard
+      }
+    }
+  }, [user, customTests, userResults]);
+
+  const markAsRead = async (id: string) => {
+    try {
+      await updateDoc(doc(db, 'notifications', id), { read: true });
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  };
 
   const getRecommendation = (type: TestType) => {
     const latest = userResults.find(r => r.testType === type);
@@ -5776,7 +6597,7 @@ export default function App() {
     return "Terus kembangkan potensi Anda di bidang ini.";
   };
 
-  const handleCompleteTest = async (scores: Record<string, number>) => {
+  const handleCompleteTest = async (scores: Record<string, number>, extraData?: any) => {
     if (!user || (!activeTest && !activeCustomTest)) return;
 
     setIsAnalyzingTest(true);
@@ -5789,6 +6610,7 @@ export default function App() {
       
 Skor yang diperoleh:
 ${Object.entries(scores).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+${testType === 'wartegg' && extraData?.titles ? `Judul Gambar Wartegg:\n${Object.entries(extraData.titles).map(([k, v]) => `- Kotak ${parseInt(k)+1}: ${v}`).join('\n')}` : ''}
 
 Berikan analisis kepribadian/minat bakat yang mendalam dan rekomendasi yang dipersonalisasi untuk pengembangan diri dan karir/pendidikan selanjutnya.
 Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
@@ -5812,8 +6634,10 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
       studentClass: user.className || 'Umum',
       studentNisn: user.nisn || '',
       testType: testType,
+      visualizationType: activeCustomTest?.visualizationType,
       scores,
       analysis,
+      extraData,
       timestamp: serverTimestamp()
     };
 
@@ -5961,6 +6785,15 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
               </button>
             </div>
 
+            <button 
+              onClick={() => setShowStudentGuide(true)}
+              className="mt-4 w-full bg-emerald-50 text-emerald-700 text-xs font-black hover:bg-emerald-100 transition-all py-3 border-2 border-emerald-200 rounded-xl flex items-center justify-center gap-2 shadow-sm"
+            >
+              <BookOpen className="w-4 h-4" /> PANDUAN AKSES SISWA
+            </button>
+
+            {showStudentGuide && <StudentGuideModal onClose={() => setShowStudentGuide(false)} />}
+
             <div className="mt-8 p-5 bg-amber-50 rounded-2xl border border-amber-100 text-left">
               <p className="text-[11px] text-amber-900 leading-relaxed">
                 <span className="font-black text-amber-700">Petunjuk :</span> Siswa yang terdaftar sebagai siswa bimbingan, silahkan pilih tombol <b>SISWA TERDAFTAR</b> (Login dengan menggunakan NISN). Apabila belum terdaftar silahkan hubungi guru BK, bagi peserta tes yang lain silahkan pilih tombol <b>UMUM</b>.
@@ -6014,18 +6847,26 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
 
           <div className="grid grid-cols-1 gap-3">
             <button 
+              onClick={() => setShowStudentGuide(true)}
+              className="w-full bg-emerald-50 text-emerald-700 text-xs font-black hover:bg-emerald-100 transition-all py-3 border-2 border-emerald-200 rounded-xl flex items-center justify-center gap-2 shadow-sm"
+            >
+              <BookOpen className="w-4 h-4" /> PANDUAN AKSES SISWA
+            </button>
+            <button 
               onClick={() => setShowEmergencyMenu(true)}
-              className="w-full text-emerald-600 text-xs font-black hover:bg-emerald-50 transition-all py-3 border-2 border-emerald-600 rounded-xl mt-2 flex items-center justify-center gap-2 shadow-sm"
+              className="w-full text-emerald-600 text-xs font-black hover:bg-emerald-50 transition-all py-3 border-2 border-emerald-600 rounded-xl flex items-center justify-center gap-2 shadow-sm"
             >
               <AlertCircle className="w-4 h-4" /> MASUK TANPA AKUN GOOGLE
             </button>
             <button 
               onClick={() => setShowEmergencyMenu(false)}
-              className="w-full text-slate-500 text-xs font-black hover:bg-slate-100 transition-all py-3 border-2 border-slate-200 rounded-xl mt-2 flex items-center justify-center gap-2 shadow-sm"
+              className="w-full text-slate-500 text-xs font-black hover:bg-slate-100 transition-all py-3 border-2 border-slate-200 rounded-xl flex items-center justify-center gap-2 shadow-sm"
             >
               <X className="w-4 h-4" /> BATAL
             </button>
           </div>
+
+          {showStudentGuide && <StudentGuideModal onClose={() => setShowStudentGuide(false)} />}
 
           <div className="mt-8 p-4 bg-blue-50 rounded-2xl border border-blue-100 text-left">
             <div className="flex gap-3">
@@ -6056,6 +6897,10 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
         onLogout={handleLogout} 
         setView={setView}
         view={view}
+        notifications={notifications}
+        showNotifications={showNotifications}
+        setShowNotifications={setShowNotifications}
+        markAsRead={markAsRead}
         onBack={() => {
           setActiveTest(null);
           setTestResult(null);
@@ -6110,7 +6955,7 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              <AdminDashboard results={allResults} classes={classes} students={students} teacherSettings={teacherSettings} user={user} setView={setView} showToast={showToast} setTestResult={setTestResult} allUsers={allUsers} />
+              <AdminDashboard results={allResults} classes={classes} students={students} teacherSettings={teacherSettings} user={user} setView={setView} showToast={showToast} setTestResult={setTestResult} allUsers={allUsers} notifications={notifications} />
             </motion.div>
           ) : view === 'create-test' ? (
             <motion.div
@@ -6165,6 +7010,33 @@ Gunakan format Markdown yang rapi (gunakan heading, bullet points, bold text).`;
                   </div>
                 )}
               </div>
+
+              {user.role === 'student' && customTests.filter(ct => ct.isActive && !userResults.some(ur => ur.testType === ct.testType)).length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-12 p-6 bg-amber-50 border border-amber-200 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-6 shadow-sm"
+                >
+                  <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+                      <Bell className="w-7 h-7 text-amber-600" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-black text-amber-900">Tes Belum Selesai</h4>
+                      <p className="text-amber-700 text-sm font-medium">Kamu memiliki {customTests.filter(ct => ct.isActive && !userResults.some(ur => ur.testType === ct.testType)).length} tes kustom yang belum dikerjakan.</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      const firstUnfinished = customTests.find(ct => ct.isActive && !userResults.some(ur => ur.testType === ct.testType));
+                      if (firstUnfinished) setActiveCustomTest(firstUnfinished);
+                    }}
+                    className="px-8 py-3 bg-amber-600 text-white rounded-2xl font-black text-sm hover:bg-amber-700 transition-all shadow-lg shadow-amber-200 shrink-0"
+                  >
+                    KERJAKAN SEKARANG
+                  </button>
+                </motion.div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {(Object.keys(TESTS) as TestType[]).map(type => (

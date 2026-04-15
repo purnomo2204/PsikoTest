@@ -358,65 +358,69 @@ export const TESTS: Record<TestType, TestData> = {
 };
 
 export const getShortResult = (testType: TestType, scores: Record<string, number>): string => {
+  const testInfo = TESTS[testType];
+  const testTitle = testInfo ? testInfo.title.replace('Tes ', '') : testType;
+
   switch (testType) {
     case 'learning_style': {
       const maxLs = Object.entries(scores).reduce((a, b) => a[1] > b[1] ? a : b);
       const map: Record<string, string> = { visual: 'Visual', auditory: 'Auditori', kinesthetic: 'Kinestetik' };
-      return map[maxLs[0]] || maxLs[0];
+      return `Gaya Belajar: ${map[maxLs[0]] || maxLs[0]}`;
     }
     case 'multiple_intelligences': {
       const sortedMi = Object.entries(scores).sort((a, b) => b[1] - a[1]);
       const top3 = sortedMi.slice(0, 3).map(([key]) => {
         const map: Record<string, string> = {
-          linguistic: "Linguistik", logical: "Logis-Matematis", spatial: "Visual-Spasial",
+          linguistic: "Linguistik", logical: "Logis", spatial: "Spasial",
           kinesthetic: "Kinestetik", musical: "Musikal", interpersonal: "Interpersonal",
           intrapersonal: "Intrapersonal", naturalist: "Naturalis"
         };
         return map[key] || key;
       });
-      return top3.join(', ');
+      return `Kec. Majemuk: ${top3.join(', ')}`;
     }
     case 'personality': {
-      const e_i = (scores['extrovert'] || 0) > (scores['introvert'] || 0) ? 'Ekstrovert' : 'Introvert';
-      const s_n = (scores['sensing'] || 0) > (scores['intuition'] || 0) ? 'Penginderaan' : 'Intuisi';
-      const t_f = (scores['thinking'] || 0) > (scores['feeling'] || 0) ? 'Berpikir' : 'Perasaan';
-      const j_p = (scores['judging'] || 0) > (scores['perceiving'] || 0) ? 'Menilai' : 'Spontan';
-      return `${j_p}, ${e_i}, ${s_n}`;
+      const e_i = (scores['extrovert'] || 0) > (scores['introvert'] || 0) ? 'E' : 'I';
+      const s_n = (scores['sensing'] || 0) > (scores['intuition'] || 0) ? 'S' : 'N';
+      const t_f = (scores['thinking'] || 0) > (scores['feeling'] || 0) ? 'T' : 'F';
+      const j_p = (scores['judging'] || 0) > (scores['perceiving'] || 0) ? 'J' : 'P';
+      return `Kepribadian: ${e_i}${s_n}${t_f}${j_p}`;
     }
     case 'aptitude_interest': {
       const sortedRiasec = Object.entries(scores).filter(([k]) => k !== 'none').sort((a, b) => b[1] - a[1]);
       const top3 = sortedRiasec.slice(0, 3).map(([key]) => {
         const map: Record<string, string> = {
-          realistic: "Realistis", investigative: "Investigatif", artistic: "Artistik",
-          social: "Sosial", enterprising: "Berjiwa Usaha", conventional: "Konvensional"
+          realistic: "R", investigative: "I", artistic: "A",
+          social: "S", enterprising: "E", conventional: "C"
         };
         return map[key] || key;
       });
-      return top3.join(', ');
+      return `Bakat Minat: ${top3.join('')}`;
     }
     case 'school_major': {
       const sortedMajors = Object.entries(scores).sort((a, b) => b[1] - a[1]);
       const topMajor = sortedMajors[0][0];
-      const map: Record<string, string> = { ipa: "Ipa", ips: "Ips", bahasa: "Bahasa Indonesia", smk: "SMK" };
-      return map[topMajor] || topMajor;
+      const map: Record<string, string> = { ipa: "IPA", ips: "IPS", bahasa: "Bahasa", smk: "SMK" };
+      return `Penjurusan: ${map[topMajor] || topMajor}`;
     }
     case 'anxiety': {
       const totalAx = scores['anxiety'] || 0;
-      if (totalAx <= 15) return "Rendah";
-      if (totalAx <= 45) return "Sedang";
-      return "Tinggi";
+      let level = "";
+      if (totalAx <= 15) level = "Rendah";
+      else if (totalAx <= 45) level = "Sedang";
+      else level = "Tinggi";
+      return `Kecemasan: ${level}`;
     }
     case 'iq_wais': {
       const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-      // Simple IQ estimation: (score/100 * 60) + 80 (adjusted for 50 questions, max score 100)
       const estimatedIQ = Math.round((totalScore / 100) * 60 + 80);
-      return `IQ: ${estimatedIQ}`;
+      return `IQ WAIS: ${estimatedIQ}`;
     }
     case 'wartegg': {
-      return "Gambar Selesai";
+      return "Wartegg: Selesai";
     }
     default:
-      return "Selesai";
+      return `${testTitle}: Selesai`;
   }
 };
 
@@ -640,9 +644,9 @@ Estimasi IQ Anda: **${estimatedIQ}**
 Kategori: **${category}**
 
 **Breakdown Kemampuan:**
-- **Pemahaman Verbal:** ${Math.round((verbalScore / 30) * 100)}%
-- **Penalaran Perseptual:** ${Math.round((perceptualScore / 24) * 100)}%
-- **Memori Kerja:** ${Math.round((workingMemoryScore / 26) * 100)}%
+- **Pemahaman Verbal:** ${Math.round((verbalScore / 34) * 100)}%
+- **Penalaran Perseptual:** ${Math.round((perceptualScore / 22) * 100)}%
+- **Memori Kerja:** ${Math.round((workingMemoryScore / 24) * 100)}%
 - **Kecepatan Pemrosesan:** ${Math.round((processingSpeedScore / 20) * 100)}%
 
 **Interpretasi:**

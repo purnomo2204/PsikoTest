@@ -75,6 +75,20 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "description", "testType", "questions", "isActive", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System or teacher-sent notification for students.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["info", "warning", "success"] },
+        "read": { "type": "boolean" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "type", "read", "timestamp"]
     }
   },
   "firestore": {
@@ -83,6 +97,7 @@
     "/classes/{classId}": { "schema": "Class", "description": "Class room documents." },
     "/students/{studentId}": { "schema": "Student", "description": "Pre-registered student documents." },
     "/teacher_settings/{uid}": { "schema": "TeacherSettings", "description": "Teacher settings documents." },
-    "/custom_tests/{testId}": { "schema": "CustomTest", "description": "Custom test documents." }
+    "/custom_tests/{testId}": { "schema": "CustomTest", "description": "Custom test documents." },
+    "/notifications/{notifId}": { "schema": "Notification", "description": "Notification documents." }
   }
 }
