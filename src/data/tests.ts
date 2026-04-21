@@ -285,62 +285,6 @@ export const TESTS: Record<TestType, TestData> = {
       { id: "ax40", text: "Saya merasa takut tidak bisa memenuhi ekspektasi orang lain.", options: [{ text: "Tidak Pernah", value: "anxiety", score: 0 }, { text: "Kadang-kadang", value: "anxiety", score: 1 }, { text: "Sering", value: "anxiety", score: 2 }, { text: "Selalu", value: "anxiety", score: 3 }] }
     ]
   },
-  iq_wais: {
-    title: "Tes IQ: WAIS (Wechsler Adult Intelligence Scale)",
-    description: "Mengukur kemampuan kognitif melalui berbagai subtes: Pemahaman Verbal, Penalaran Perseptual, Memori Kerja, dan Kecepatan Pemrosesan.",
-    questions: [
-      { id: "iq1", text: "Apa persamaan antara 'Jeruk' dan 'Pisang'?", options: [{ text: "Keduanya adalah buah", value: "verbal", score: 2 }, { text: "Keduanya memiliki kulit", value: "verbal", score: 1 }, { text: "Keduanya berbeda", value: "verbal", score: 0 }] },
-      { id: "iq2", text: "Siapa penulis novel 'Laskar Pelangi'?", options: [{ text: "Andrea Hirata", value: "verbal", score: 2 }, { text: "Habiburrahman El Shirazy", value: "verbal", score: 0 }, { text: "Dee Lestari", value: "verbal", score: 0 }] },
-      { id: "iq3", text: "Jika 3 buku harganya Rp 45.000, berapa harga 5 buku?", options: [{ text: "Rp 75.000", value: "working_memory", score: 2 }, { text: "Rp 60.000", value: "working_memory", score: 0 }, { text: "Rp 90.000", value: "working_memory", score: 0 }] },
-      { id: "iq4", text: "Pilih kata yang paling tepat: 'Siang' berpasangan dengan 'Terang', maka 'Malam' berpasangan dengan...", options: [{ text: "Gelap", value: "verbal", score: 2 }, { text: "Bulan", value: "verbal", score: 1 }, { text: "Tidur", value: "verbal", score: 0 }] },
-      { id: "iq5", text: "Manakah yang tidak termasuk kelompoknya?", options: [{ text: "Meja", value: "perceptual", score: 0 }, { text: "Kursi", value: "perceptual", score: 0 }, { text: "Kucing", value: "perceptual", score: 2 }] },
-      { id: "iq6", text: "Berapakah hasil dari 15 + 27 - 12?", options: [{ text: "30", value: "working_memory", score: 2 }, { text: "32", value: "working_memory", score: 0 }, { text: "28", value: "working_memory", score: 0 }] },
-      { id: "iq7", text: "Apa arti dari peribahasa 'Tong kosong nyaring bunyinya'?", options: [{ text: "Orang yang banyak bicara biasanya kurang berilmu", value: "verbal", score: 2 }, { text: "Tong yang tidak ada isinya akan berisik", value: "verbal", score: 1 }, { text: "Jangan bicara terlalu keras", value: "verbal", score: 0 }] },
-      { id: "iq8", text: "Lanjutkan pola angka ini: 2, 4, 8, 16, ...", options: [{ text: "32", value: "perceptual", score: 2 }, { text: "24", value: "perceptual", score: 0 }, { text: "64", value: "perceptual", score: 0 }] },
-      { id: "iq9", text: "Ibu kota negara Jepang adalah...", options: [{ text: "Tokyo", value: "verbal", score: 2 }, { text: "Kyoto", value: "verbal", score: 0 }, { text: "Osaka", value: "verbal", score: 0 }] },
-      { id: "iq10", text: "Jika Anda memutar huruf 'b' 180 derajat, huruf apa yang terbentuk?", options: [{ text: "q", value: "perceptual", score: 2 }, { text: "p", value: "perceptual", score: 0 }, { text: "d", value: "perceptual", score: 0 }] },
-      { id: "iq11", text: "Berapa jumlah detik dalam 2 menit?", options: [{ text: "120", value: "working_memory", score: 2 }, { text: "100", value: "working_memory", score: 0 }, { text: "60", value: "working_memory", score: 0 }] },
-      { id: "iq12", text: "Apa lawan kata dari 'Optimis'?", options: [{ text: "Pesimis", value: "verbal", score: 2 }, { text: "Ragu", value: "verbal", score: 0 }, { text: "Sedih", value: "verbal", score: 0 }] },
-      { id: "iq13", text: "Manakah yang lebih berat: 1 kg kapas atau 1 kg besi?", options: [{ text: "Sama berat", value: "perceptual", score: 2 }, { text: "Besi", value: "perceptual", score: 0 }, { text: "Kapas", value: "perceptual", score: 0 }] },
-      { id: "iq14", text: "Jika hari ini adalah hari Selasa, 3 hari yang lalu adalah hari...", options: [{ text: "Sabtu", value: "working_memory", score: 2 }, { text: "Minggu", value: "working_memory", score: 0 }, { text: "Senin", value: "working_memory", score: 0 }] },
-      { id: "iq15", text: "Apa fungsi utama dari paru-paru?", options: [{ text: "Pernapasan", value: "verbal", score: 2 }, { text: "Pencernaan", value: "verbal", score: 0 }, { text: "Peredaran darah", value: "verbal", score: 0 }] },
-      { id: "iq16", text: "Lanjutkan pola ini: A, C, E, G, ...", options: [{ text: "I", value: "perceptual", score: 2 }, { text: "H", value: "perceptual", score: 0 }, { text: "J", value: "perceptual", score: 0 }] },
-      { id: "iq17", text: "Berapakah 12% dari 200?", options: [{ text: "24", value: "working_memory", score: 2 }, { text: "20", value: "working_memory", score: 0 }, { text: "12", value: "working_memory", score: 0 }] },
-      { id: "iq18", text: "Apa persamaan antara 'Kamera' dan 'Mata'?", options: [{ text: "Keduanya menangkap gambar", value: "verbal", score: 2 }, { text: "Keduanya berbentuk bulat", value: "verbal", score: 0 }, { text: "Keduanya mahal", value: "verbal", score: 0 }] },
-      { id: "iq19", text: "Jika Anda memiliki 2 lusin telur, berapa jumlah telurnya?", options: [{ text: "24", value: "working_memory", score: 2 }, { text: "12", value: "working_memory", score: 0 }, { text: "36", value: "working_memory", score: 0 }] },
-      { id: "iq20", text: "Manakah yang merupakan bangun ruang?", options: [{ text: "Kubus", value: "perceptual", score: 2 }, { text: "Persegi", value: "perceptual", score: 0 }, { text: "Segitiga", value: "perceptual", score: 0 }] },
-      { id: "iq21", text: "Siapa penemu lampu pijar?", options: [{ text: "Thomas Alva Edison", value: "verbal", score: 2 }, { text: "Alexander Graham Bell", value: "verbal", score: 0 }, { text: "Albert Einstein", value: "verbal", score: 0 }] },
-      { id: "iq22", text: "Berapakah hasil dari 144 dibagi 12?", options: [{ text: "12", value: "working_memory", score: 2 }, { text: "14", value: "working_memory", score: 0 }, { text: "10", value: "working_memory", score: 0 }] },
-      { id: "iq23", text: "Apa yang dimaksud dengan 'Demokrasi'?", options: [{ text: "Pemerintahan dari rakyat, oleh rakyat, untuk rakyat", value: "verbal", score: 2 }, { text: "Pemerintahan oleh raja", value: "verbal", score: 0 }, { text: "Pemerintahan oleh militer", value: "verbal", score: 0 }] },
-      { id: "iq24", text: "Jika sebuah kotak memiliki 6 sisi, bangun apa itu?", options: [{ text: "Kubus/Balok", value: "perceptual", score: 2 }, { text: "Limas", value: "perceptual", score: 0 }, { text: "Prisma Segitiga", value: "perceptual", score: 0 }] },
-      { id: "iq25", text: "Berapa jumlah provinsi di Indonesia saat ini (2024)?", options: [{ text: "38", value: "verbal", score: 2 }, { text: "34", value: "verbal", score: 0 }, { text: "37", value: "verbal", score: 0 }] },
-      { id: "iq26", text: "Jika 5x = 25, maka x adalah...", options: [{ text: "5", value: "working_memory", score: 2 }, { text: "10", value: "working_memory", score: 0 }, { text: "20", value: "working_memory", score: 0 }] },
-      { id: "iq27", text: "Apa lawan kata dari 'Cerdas'?", options: [{ text: "Bodoh", value: "verbal", score: 2 }, { text: "Malas", value: "verbal", score: 0 }, { text: "Lambat", value: "verbal", score: 0 }] },
-      { id: "iq28", text: "Manakah yang merupakan warna primer?", options: [{ text: "Merah", value: "perceptual", score: 2 }, { text: "Hijau", value: "perceptual", score: 0 }, { text: "Ungu", value: "perceptual", score: 0 }] },
-      { id: "iq29", text: "Berapa jumlah kaki pada laba-laba?", options: [{ text: "8", value: "verbal", score: 2 }, { text: "6", value: "verbal", score: 0 }, { text: "10", value: "verbal", score: 0 }] },
-      { id: "iq30", text: "Jika Anda mengeja kata 'DUNIA' terbalik, apa hasilnya?", options: [{ text: "AINUD", value: "working_memory", score: 2 }, { text: "AINDU", value: "working_memory", score: 0 }, { text: "AUNID", value: "working_memory", score: 0 }] },
-      { id: "iq31", text: "Apa satuan untuk mengukur arus listrik?", options: [{ text: "Ampere", value: "verbal", score: 2 }, { text: "Volt", value: "verbal", score: 0 }, { text: "Watt", value: "verbal", score: 0 }] },
-      { id: "iq32", text: "Lanjutkan pola: 1, 1, 2, 3, 5, 8, ...", options: [{ text: "13", value: "perceptual", score: 2 }, { text: "10", value: "perceptual", score: 0 }, { text: "11", value: "perceptual", score: 0 }] },
-      { id: "iq33", text: "Berapakah akar kuadrat dari 81?", options: [{ text: "9", value: "working_memory", score: 2 }, { text: "7", value: "working_memory", score: 0 }, { text: "8", value: "working_memory", score: 0 }] },
-      { id: "iq34", text: "Apa persamaan antara 'Es' dan 'Uap'?", options: [{ text: "Keduanya adalah wujud air", value: "verbal", score: 2 }, { text: "Keduanya dingin", value: "verbal", score: 0 }, { text: "Keduanya tidak terlihat", value: "verbal", score: 0 }] },
-      { id: "iq35", text: "Jika Anda berlari di lomba dan menyalip orang di posisi kedua, Anda sekarang di posisi...", options: [{ text: "Kedua", value: "perceptual", score: 2 }, { text: "Pertama", value: "perceptual", score: 0 }, { text: "Ketiga", value: "perceptual", score: 0 }] },
-      { id: "iq36", text: "Berapakah hasil dari 7 x 8?", options: [{ text: "56", value: "working_memory", score: 2 }, { text: "54", value: "working_memory", score: 0 }, { text: "64", value: "working_memory", score: 0 }] },
-      { id: "iq37", text: "Apa planet terdekat dari Matahari?", options: [{ text: "Merkurius", value: "verbal", score: 2 }, { text: "Venus", value: "verbal", score: 0 }, { text: "Mars", value: "verbal", score: 0 }] },
-      { id: "iq38", text: "Manakah yang merupakan hewan mamalia yang hidup di air?", options: [{ text: "Paus", value: "perceptual", score: 2 }, { text: "Hiu", value: "perceptual", score: 0 }, { text: "Kura-kura", value: "perceptual", score: 0 }] },
-      { id: "iq39", text: "Jika 1 jam = 60 menit, berapa menit dalam 1,5 jam?", options: [{ text: "90", value: "working_memory", score: 2 }, { text: "75", value: "working_memory", score: 0 }, { text: "80", value: "working_memory", score: 0 }] },
-      { id: "iq40", text: "Apa nama galaksi tempat Bumi berada?", options: [{ text: "Bima Sakti", value: "verbal", score: 2 }, { text: "Andromeda", value: "verbal", score: 0 }, { text: "Sombrero", value: "verbal", score: 0 }] },
-      { id: "iq41", text: "Cari angka yang sama: 45, 67, 45, 89", options: [{ text: "45", value: "processing_speed", score: 2 }, { text: "67", value: "processing_speed", score: 0 }, { text: "89", value: "processing_speed", score: 0 }] },
-      { id: "iq42", text: "Manakah simbol yang berbeda? #, #, $, #", options: [{ text: "$", value: "processing_speed", score: 2 }, { text: "#", value: "processing_speed", score: 0 }] },
-      { id: "iq43", text: "Temukan pasangan yang cocok: (A-1), (B-2), (C-?)", options: [{ text: "3", value: "processing_speed", score: 2 }, { text: "4", value: "processing_speed", score: 0 }, { text: "5", value: "processing_speed", score: 0 }] },
-      { id: "iq44", text: "Urutkan dengan cepat: B, A, C, D", options: [{ text: "A, B, C, D", value: "processing_speed", score: 2 }, { text: "B, A, C, D", value: "processing_speed", score: 0 }] },
-      { id: "iq45", text: "Manakah yang merupakan hasil dari 5 + 5 + 5?", options: [{ text: "15", value: "processing_speed", score: 2 }, { text: "10", value: "processing_speed", score: 0 }, { text: "20", value: "processing_speed", score: 0 }] },
-      { id: "iq46", text: "Identifikasi warna yang disebutkan: 'MERAH' (ditulis dengan warna biru)", options: [{ text: "Merah", value: "processing_speed", score: 2 }, { text: "Biru", value: "processing_speed", score: 0 }] },
-      { id: "iq47", text: "Pilih kata yang paling pendek: Gajah, Semut, Jerapah", options: [{ text: "Semut", value: "processing_speed", score: 2 }, { text: "Gajah", value: "processing_speed", score: 0 }] },
-      { id: "iq48", text: "Manakah angka yang paling besar? 102, 120, 201", options: [{ text: "201", value: "processing_speed", score: 2 }, { text: "120", value: "processing_speed", score: 0 }] },
-      { id: "iq49", text: "Temukan huruf yang hilang: P, Q, R, ?, T", options: [{ text: "S", value: "processing_speed", score: 2 }, { text: "U", value: "processing_speed", score: 0 }] },
-      { id: "iq50", text: "Manakah yang merupakan bentuk lingkaran?", options: [{ text: "O", value: "processing_speed", score: 2 }, { text: "X", value: "processing_speed", score: 0 }] }
-    ]
-  },
   wartegg: {
     title: "Tes Wartegg",
     description: "Tes proyektif untuk mengevaluasi kepribadian melalui 8 kotak gambar yang harus diselesaikan.",
@@ -354,6 +298,87 @@ export const TESTS: Record<TestType, TestData> = {
       { id: "w7", text: "Kotak 7: Titik-titik melengkung (Sensitivitas/Seksualitas)", options: [] },
       { id: "w8", text: "Kotak 8: Garis melengkung besar (Perlindungan/Sosial)", options: [] }
     ]
+  },
+  cfit: {
+    title: "Tes CFIT (Culture Fair Intelligence Test)",
+    description: "Mengukur kecerdasan fluid (logika murni) yang bersifat universal dan bebas budaya (non-verbal).",
+    questions: [
+      { id: "cf1", text: "Seri: Garis mengarah ke atas, lalu ke kanan, lalu ke bawah. Gambar selanjutnya mengarah ke?", options: [{ text: "Kiri", value: "cfit", score: 1 }, { text: "Atas", value: "cfit", score: 0 }, { text: "Serong", value: "cfit", score: 0 }, { text: "Titik", value: "cfit", score: 0 }] },
+      { id: "cf2", text: "Seri: Satu lingkaran kecil, lalu dua, lalu tiga. Gambar selanjutnya berisi?", options: [{ text: "Empat lingkaran kecil", value: "cfit", score: 1 }, { text: "Dua lingkaran besar", value: "cfit", score: 0 }, { text: "Kotak", value: "cfit", score: 0 }, { text: "Kosong", value: "cfit", score: 0 }] },
+      { id: "cf3", text: "Seri: Kotak kosong, kotak bertitik tengah, kotak bersilang. Selanjutnya?", options: [{ text: "Kotak hitam penuh", value: "cfit", score: 1 }, { text: "Lingkaran", value: "cfit", score: 0 }, { text: "Garis horizontal", value: "cfit", score: 0 }, { text: "Segitiga", value: "cfit", score: 0 }] },
+      { id: "cf4", text: "Seri: Segitiga menghadap atas, lalu menyamping kanan, lalu bawah. Selanjutnya?", options: [{ text: "Menghadap samping kiri", value: "cfit", score: 1 }, { text: "Menghadap atas", value: "cfit", score: 0 }, { text: "Membentuk kotak", value: "cfit", score: 0 }, { text: "Terbalik", value: "cfit", score: 0 }] },
+      { id: "cf5", text: "Seri: Tangan jam di angka 12, lalu 3, lalu 6. Selanjutnya ke arah angka?", options: [{ text: "9", value: "cfit", score: 1 }, { text: "12", value: "cfit", score: 0 }, { text: "1", value: "cfit", score: 0 }, { text: "8", value: "cfit", score: 0 }] },
+      { id: "cf6", text: "Seri: Huruf A, C, E. Huruf selanjutnya adalah?", options: [{ text: "G", value: "cfit", score: 1 }, { text: "F", value: "cfit", score: 0 }, { text: "H", value: "cfit", score: 0 }, { text: "I", value: "cfit", score: 0 }] },
+      { id: "cf7", text: "Seri: Bintang bersudut 3, lalu 4, lalu 5. Selanjutnya bersudut?", options: [{ text: "6", value: "cfit", score: 1 }, { text: "7", value: "cfit", score: 0 }, { text: "Bentuk bulat", value: "cfit", score: 0 }, { text: "Kotak", value: "cfit", score: 0 }] },
+      { id: "cf8", text: "Seri: Hitam di sisi kiri, lalu atas, lalu kanan. Selanjutnya di sisi?", options: [{ text: "Bawah", value: "cfit", score: 1 }, { text: "Tengah", value: "cfit", score: 0 }, { text: "Seluruh bagian", value: "cfit", score: 0 }, { text: "Kembali ke kiri", value: "cfit", score: 0 }] },
+      { id: "cf9", text: "Seri: Garis lurus, garis patah satu kali, zig-zag dua kali. Selanjutnya?", options: [{ text: "Zig-zag tiga kali", value: "cfit", score: 1 }, { text: "Garis lengkung", value: "cfit", score: 0 }, { text: "Titik-titik", value: "cfit", score: 0 }, { text: "Lingkaran", value: "cfit", score: 0 }] },
+      { id: "cf10", text: "Seri: Angka 1, 2, 4, 7, 11. Angka selanjutnya?", options: [{ text: "16", value: "cfit", score: 1 }, { text: "15", value: "cfit", score: 0 }, { text: "12", value: "cfit", score: 0 }, { text: "20", value: "cfit", score: 0 }] },
+      { id: "cf11", text: "Klasifikasi: Mana yang tidak termasuk kelompok bunga?", options: [{ text: "Mawar", value: "cfit", score: 0 }, { text: "Melati", value: "cfit", score: 0 }, { text: "Anggrek", value: "cfit", score: 0 }, { text: "Bayam", value: "cfit", score: 1 }] },
+      { id: "cf12", text: "Klasifikasi: Pilih bentuk yang paling berbeda.", options: [{ text: "Segitiga", value: "cfit", score: 0 }, { text: "Persegi", value: "cfit", score: 0 }, { text: "Trapesium", value: "cfit", score: 0 }, { text: "Lingkaran", value: "cfit", score: 1 }] },
+      { id: "cf13", text: "Klasifikasi: Mana yang bukan transportasi darat?", options: [{ text: "Mobil", value: "cfit", score: 0 }, { text: "Motor", value: "cfit", score: 0 }, { text: "Kapal", value: "cfit", score: 1 }, { text: "Sepeda", value: "cfit", score: 0 }] },
+      { id: "cf14", text: "Klasifikasi: Pilih yang tidak masuk kelompok kota di Indonesia.", options: [{ text: "Jakarta", value: "cfit", score: 0 }, { text: "Bandung", value: "cfit", score: 0 }, { text: "Singapura", value: "cfit", score: 1 }, { text: "Medan", value: "cfit", score: 0 }] },
+      { id: "cf15", text: "Klasifikasi: Mana yang merupakan angka ganjil?", options: [{ text: "2", value: "cfit", score: 0 }, { text: "4", value: "cfit", score: 0 }, { text: "6", value: "cfit", score: 0 }, { text: "9", value: "cfit", score: 1 }] },
+      { id: "cf16", text: "Klasifikasi: Pilih yang bukan alat musik petik.", options: [{ text: "Gitar", value: "cfit", score: 0 }, { text: "Kecapi", value: "cfit", score: 0 }, { text: "Piano", value: "cfit", score: 1 }, { text: "Ukulele", value: "cfit", score: 0 }] },
+      { id: "cf17", text: "Klasifikasi: Mana benda yang volumenya paling besar?", options: [{ text: "Gelas", value: "cfit", score: 0 }, { text: "Ember", value: "cfit", score: 0 }, { text: "Bak Mandi", value: "cfit", score: 1 }, { text: "Sendok", value: "cfit", score: 0 }] },
+      { id: "cf18", text: "Klasifikasi: Mana yang bukan termasuk planet dalam (Terestrial)?", options: [{ text: "Merkurius", value: "cfit", score: 0 }, { text: "Bumi", value: "cfit", score: 0 }, { text: "Mars", value: "cfit", score: 0 }, { text: "Saturnus", value: "cfit", score: 1 }] },
+      { id: "cf19", text: "Klasifikasi: Mana yang bukan warna primer?", options: [{ text: "Merah", value: "cfit", score: 0 }, { text: "Biru", value: "cfit", score: 0 }, { text: "Kuning", value: "cfit", score: 0 }, { text: "Hijau", value: "cfit", score: 1 }] },
+      { id: "cf20", text: "Klasifikasi: Pilih profesi yang paling berbeda bidang kerjanya.", options: [{ text: "Dokter", value: "cfit", score: 0 }, { text: "Perawat", value: "cfit", score: 0 }, { text: "Apoteker", value: "cfit", score: 0 }, { text: "Sopir", value: "cfit", score: 1 }] },
+      { id: "cf21", text: "Matriks: A ke B (Kecil ke Besar), maka C ke?", options: [{ text: "D (Lebih Besar)", value: "cfit", score: 1 }, { text: "D (Tetap)", value: "cfit", score: 0 }, { text: "D (Berwarna)", value: "cfit", score: 0 }, { text: "E (Terbalik)", value: "cfit", score: 0 }] },
+      { id: "cf22", text: "Matriks: Apel ke Buah seperti Mawar ke?", options: [{ text: "Bunga", value: "cfit", score: 1 }, { text: "Tanaman", value: "cfit", score: 0 }, { text: "Harum", value: "cfit", score: 0 }, { text: "Merah", value: "cfit", score: 0 }] },
+      { id: "cf23", text: "Matriks: Manusia ke Rumah seperti Burung ke?", options: [{ text: "Sarang", value: "cfit", score: 1 }, { text: "Langit", value: "cfit", score: 0 }, { text: "Pohon", value: "cfit", score: 0 }, { text: "Sayap", value: "cfit", score: 0 }] },
+      { id: "cf24", text: "Matriks: Haus ke Minum seperti Lapar ke?", options: [{ text: "Makan", value: "cfit", score: 1 }, { text: "Tidur", value: "cfit", score: 0 }, { text: "Lari", value: "cfit", score: 0 }, { text: "Kerja", value: "cfit", score: 0 }] },
+      { id: "cf25", text: "Matriks: Malam ke Bulan seperti Siang ke?", options: [{ text: "Matahari", value: "cfit", score: 1 }, { text: "Awan", value: "cfit", score: 0 }, { text: "Biru", value: "cfit", score: 0 }, { text: "Terang", value: "cfit", score: 0 }] },
+      { id: "cf26", text: "Matriks: Pilot ke Pesawat seperti Masinis ke?", options: [{ text: "Kereta Api", value: "cfit", score: 1 }, { text: "Mobil", value: "cfit", score: 0 }, { text: "Kapal Laut", value: "cfit", score: 0 }, { text: "Bus", value: "cfit", score: 0 }] },
+      { id: "cf27", text: "Matriks: Dingin ke Es seperti Panas ke?", options: [{ text: "Api", value: "cfit", score: 1 }, { text: "Air", value: "cfit", score: 0 }, { text: "Udara", value: "cfit", score: 0 }, { text: "Matahari", value: "cfit", score: 0 }] },
+      { id: "cf28", text: "Matriks: Buku ke Baca seperti Radio ke?", options: [{ text: "Dengar", value: "cfit", score: 1 }, { text: "Lihat", value: "cfit", score: 0 }, { text: "Gambar", value: "cfit", score: 0 }, { text: "Tonton", value: "cfit", score: 0 }] },
+      { id: "cf29", text: "Matriks: Kaki ke Sepatu seperti Kepala ke?", options: [{ text: "Topi", value: "cfit", score: 1 }, { text: "Kacamata", value: "cfit", score: 0 }, { text: "Baju", value: "cfit", score: 0 }, { text: "Kalung", value: "cfit", score: 0 }] },
+      { id: "cf30", text: "Matriks: Angka 2 ke 4 (Dikalikan 2), maka 15 ke?", options: [{ text: "30", value: "cfit", score: 1 }, { text: "17", value: "cfit", score: 0 }, { text: "20", value: "cfit", score: 0 }, { text: "45", value: "cfit", score: 0 }] },
+      { id: "cf31", text: "Syarat: Semua A adalah B. C adalah A. Kesimpulannya?", options: [{ text: "C adalah B", value: "cfit", score: 1 }, { text: "B adalah C", value: "cfit", score: 0 }, { text: "A adalah C", value: "cfit", score: 0 }, { text: "Tidak ada", value: "cfit", score: 0 }] },
+      { id: "cf32", text: "Syarat: Jika hari ini Selasa, maka lusa adalah?", options: [{ text: "Kamis", value: "cfit", score: 1 }, { text: "Rabu", value: "cfit", score: 0 }, { text: "Jumat", value: "cfit", score: 0 }, { text: "Sabtu", value: "cfit", score: 0 }] },
+      { id: "cf33", text: "Syarat: Jika belajar rajin maka lulus. Andi belajar rajin.", options: [{ text: "Andi lulus", value: "cfit", score: 1 }, { text: "Andi malas", value: "cfit", score: 0 }, { text: "Andi gagal", value: "cfit", score: 0 }, { text: "Guru senang", value: "cfit", score: 0 }] },
+      { id: "cf34", text: "Syarat: Semua burung punya sayap. Elang adalah burung.", options: [{ text: "Elang punya sayap", value: "cfit", score: 1 }, { text: "Sayap punya elang", value: "cfit", score: 0 }, { text: "Elang burung gagah", value: "cfit", score: 0 }, { text: "Semua punya sayap", value: "cfit", score: 0 }] },
+      { id: "cf35", text: "Syarat: Pola (1, 3, 5) mirip dengan pola?", options: [{ text: "(10, 12, 14)", value: "cfit", score: 1 }, { text: "(2, 4, 8)", value: "cfit", score: 0 }, { text: "(1, 2, 3)", value: "cfit", score: 0 }, { text: "(5, 3, 1)", value: "cfit", score: 0 }] },
+      { id: "cf36", text: "Syarat: Jika MERAH=1, KUNING=2, maka CAMPURANNYA (ORANGE) ?", options: [{ text: "3", value: "cfit", score: 1 }, { text: "4", value: "cfit", score: 0 }, { text: "5", value: "cfit", score: 0 }, { text: "0", value: "cfit", score: 0 }] },
+      { id: "cf37", text: "Syarat: Bayangan huruf 'E' di cermin sebelah kanan?", options: [{ text: "Huruf 'E' terbalik horisontal", value: "cfit", score: 1 }, { text: "Huruf 'E' terbalik vertikal", value: "cfit", score: 0 }, { text: "Huruf 'M'", value: "cfit", score: 0 }, { text: "Huruf 'W'", value: "cfit", score: 0 }] },
+      { id: "cf38", text: "Syarat: Berapa jumlah titik sudut pada segitiga?", options: [{ text: "3", value: "cfit", score: 1 }, { text: "4", value: "cfit", score: 0 }, { text: "5", value: "cfit", score: 0 }, { text: "0", value: "cfit", score: 0 }] },
+      { id: "cf39", text: "Syarat: Roda A putar kanan, kena Roda B. Roda B putar?", options: [{ text: "Kiri", value: "cfit", score: 1 }, { text: "Kanan", value: "cfit", score: 0 }, { text: "Diam", value: "cfit", score: 0 }, { text: "Bebas", value: "cfit", score: 0 }] },
+      { id: "cf40", text: "Syarat: Mana yang paling berat? 1kg Kapas atau 1kg Besi?", options: [{ text: "Sama berat", value: "cfit", score: 1 }, { text: "Besi", value: "cfit", score: 0 }, { text: "Kapas", value: "cfit", score: 0 }, { text: "Besi lebih padat", value: "cfit", score: 0 }] }
+    ]
+  },
+  subject_interest: {
+    title: "Minat Terhadap Mata Pelajaran (SMP)",
+    description: "Identifikasi mata pelajaran yang paling Anda sukai dan alasan di baliknya untuk membantu perencanaan studi.",
+    questions: [
+      { 
+        id: "si1", 
+        text: "Pelajaran apa yang Anda sukai? (Pilih satu atau lebih dan berikan alasannya)", 
+        options: [
+          { text: "Pendidikan Agama dan Budi Pekerti", value: "agama" },
+          { text: "Pendidikan Pancasila dan Kewarganegaraan", value: "ppkn" },
+          { text: "Bahasa Indonesia", value: "b_indo" },
+          { text: "Matematika", value: "mtk" },
+          { text: "Ilmu Pengetahuan Alam (IPA)", value: "ipa" },
+          { text: "Ilmu Pengetahuan Sosial (IPS)", value: "ips" },
+          { text: "Bahasa Inggris", value: "b_ing" },
+          { text: "Seni Budaya", value: "seni" },
+          { text: "Pendidikan Jasmani, Olahraga, dan Kesehatan (PJOK)", value: "pjok" },
+          { text: "Prakarya", value: "prakarya" },
+          { text: "Informatika", value: "informatika" },
+          { text: "Bahasa Daerah", value: "b_daerah" },
+          { text: "Bimbingan Konseling (BK)", value: "bk" }
+        ] 
+      }
+    ]
+  },
+  school_career: {
+    title: "Tes Perencanaan Karir",
+    description: "Rekomendasi karir masa depan berdasarkan minat, kemampuan, dan nilai-nilai pribadi.",
+    questions: [
+      { id: "sc1", text: "Apa yang paling memotivasimu dalam bekerja?", options: [{ text: "Gaji yang tinggi", value: "salarry" }, { text: "Membantu orang lain", value: "social" }, { text: "Kreativitas dan inovasi", value: "creative" }, { text: "Keseimbangan hidup", value: "balance" }] },
+      { id: "sc2", text: "Apa kelebihanmu yang paling menonjol?", options: [{ text: "Berpikir analitis", value: "analytical" }, { text: "Komunikasi", value: "communication" }, { text: "Teknis/Praktik", value: "technical" }, { text: "Kepemimpinan", value: "leadership" }] },
+      { id: "sc3", text: "Lingkungan kerja seperti apa yang kamu inginkan?", options: [{ text: "Kantor yang formal", value: "formal" }, { text: "Tim fleksibel/start-up", value: "flexible" }, { text: "Lapangan/luar ruangan", value: "outdoor" }, { text: "Pusat penelitian/lab", value: "lab" }] },
+      { id: "sc4", text: "Apa satu hal yang ingin kamu capai di masa depan?", options: [{ text: "Menjadi ahli di bidangku", value: "expert" }, { text: "Membangun usaha sendiri", value: "entrepreneur" }, { text: "Berdampak bagi masyarakat", value: "impactful" }, { text: "Meraih jabatan tinggi", value: "high_position" }] }
+    ]
   }
 };
 
@@ -362,6 +387,10 @@ export const getShortResult = (testType: TestType, scores: Record<string, number
   const testTitle = testInfo ? testInfo.title.replace('Tes ', '') : testType;
 
   switch (testType) {
+    case 'subject_interest': {
+      const selected = Object.keys(scores).filter(k => scores[k] > 0);
+      return `Minat Mapel: ${selected.length} Pelajaran`;
+    }
     case 'learning_style': {
       const maxLs = Object.entries(scores).reduce((a, b) => a[1] > b[1] ? a : b);
       const map: Record<string, string> = { visual: 'Visual', auditory: 'Auditori', kinesthetic: 'Kinestetik' };
@@ -411,13 +440,16 @@ export const getShortResult = (testType: TestType, scores: Record<string, number
       else level = "Tinggi";
       return `Kecemasan: ${level}`;
     }
-    case 'iq_wais': {
-      const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-      const estimatedIQ = Math.round((totalScore / 100) * 60 + 80);
-      return `IQ WAIS: ${estimatedIQ}`;
+    case 'cfit': {
+      const totalScore = scores['cfit'] || 0;
+      const estimatedIQ = Math.round((totalScore / 40) * 70 + 70);
+      return `IQ CFIT: ${estimatedIQ}`;
     }
     case 'wartegg': {
       return "Wartegg: Selesai";
+    }
+    case 'school_career': {
+      return "Karir: Selesai";
     }
     default:
       return `${testTitle}: Selesai`;
@@ -426,6 +458,35 @@ export const getShortResult = (testType: TestType, scores: Record<string, number
 
 export const analyzeResult = (testType: TestType, scores: Record<string, number>) => {
   switch (testType) {
+    case 'subject_interest': {
+      const selected = Object.entries(scores)
+        .filter(([k, v]) => v > 0)
+        .map(([k]) => {
+          const map: Record<string, string> = {
+            agama: "Pendidikan Agama", ppkn: "PPKn", b_indo: "Bahasa Indonesia",
+            mtk: "Matematika", ipa: "IPA", ips: "IPS", b_ing: "Bahasa Inggris",
+            seni: "Seni Budaya", pjok: "PJOK", prakarya: "Prakarya",
+            informatika: "Informatika", b_daerah: "Bahasa Daerah", bk: "BK"
+          };
+          return map[k] || k;
+        });
+
+      return `### Hasil Analisis: Minat Mata Pelajaran
+Anda telah memilih **${selected.length}** mata pelajaran yang Anda sukai:
+${selected.map(s => `- ${s}`).join('\n')}
+
+**Interpretasi:**
+Minat terhadap mata pelajaran tertentu menunjukkan kecenderungan bakat dan potensi akademik Anda. Hal ini sangat penting untuk:
+1. **Perencanaan Studi:** Membantu memilih jurusan di jenjang SMA/SMK.
+2. **Pengembangan Diri:** Fokus pada bidang yang paling Anda nikmati agar hasil belajar lebih maksimal.
+3. **Bimbingan Karir:** Memberikan gambaran awal mengenai bidang pekerjaan yang mungkin sesuai di masa depan.
+
+**Saran:**
+- Teruslah eksplorasi alasan mengapa Anda menyukai pelajaran tersebut.
+- Diskusikan hasil ini dengan guru mata pelajaran terkait untuk mendapatkan bimbingan lebih lanjut.
+- Gunakan minat ini sebagai motivasi untuk tetap semangat belajar di pelajaran lainnya juga.`;
+    }
+
     case 'learning_style': {
       const maxLs = Object.entries(scores).reduce((a, b) => a[1] > b[1] ? a : b);
       if (maxLs[0] === 'visual') {
@@ -622,9 +683,9 @@ ${desc}
 ${advice}`;
     }
 
-    case 'iq_wais': {
-      const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-      const estimatedIQ = Math.round((totalScore / 100) * 60 + 80);
+    case 'cfit': {
+      const rawScore = scores['cfit'] || 0;
+      const estimatedIQ = Math.round((rawScore / 40) * 70 + 70);
       
       let category = "";
       if (estimatedIQ >= 130) category = "Sangat Superior";
@@ -634,49 +695,62 @@ ${advice}`;
       else if (estimatedIQ >= 80) category = "Rata-rata Bawah";
       else category = "Rendah";
 
-      const verbalScore = Object.entries(scores).filter(([k]) => k === 'verbal').reduce((a, b) => a + b[1], 0);
-      const perceptualScore = Object.entries(scores).filter(([k]) => k === 'perceptual').reduce((a, b) => a + b[1], 0);
-      const workingMemoryScore = Object.entries(scores).filter(([k]) => k === 'working_memory').reduce((a, b) => a + b[1], 0);
-      const processingSpeedScore = Object.entries(scores).filter(([k]) => k === 'processing_speed').reduce((a, b) => a + b[1], 0);
-
-      return `### Hasil Analisis: Tes IQ WAIS
-Estimasi IQ Anda: **${estimatedIQ}**
+      return `### Hasil Analisis: Tes IQ CFIT
+Skor Mentah: **${rawScore}** / 40
+Estimasi IQ: **${estimatedIQ}**
 Kategori: **${category}**
 
-**Breakdown Kemampuan:**
-- **Pemahaman Verbal:** ${Math.round((verbalScore / 34) * 100)}%
-- **Penalaran Perseptual:** ${Math.round((perceptualScore / 22) * 100)}%
-- **Memori Kerja:** ${Math.round((workingMemoryScore / 24) * 100)}%
-- **Kecepatan Pemrosesan:** ${Math.round((processingSpeedScore / 20) * 100)}%
-
 **Interpretasi:**
-Hasil ini menunjukkan kapasitas kognitif umum Anda dalam berbagai domain. Skor ${estimatedIQ} berada dalam kategori **${category}**, yang mencerminkan kemampuan Anda dalam memproses informasi, memecahkan masalah, dan menggunakan logika verbal.
+Culture Fair Intelligence Test (CFIT) mengukur kecerdasan fluid Anda—kemampuan untuk bernalar secara logis dan memecahkan masalah dalam situasi baru, terlepas dari pengetahuan yang diperoleh sebelumnya.
+
+Skor IQ Anda sebesar **${estimatedIQ}** termasuk dalam kategori **${category}**. Ini menunjukkan tingkat efisiensi intelektual Anda dalam memahami hubungan kompleks dan memproses informasi non-verbal.
+
+**Karakteristik Kategori ${category}:**
+- Kemampuan abstraksi dan pemecahan masalah yang ${rawScore > 25 ? 'sangat baik' : 'cukup baik'}.
+- Kecepatan dalam menangkap pola dan logika non-verbal.
+- Kemampuan beradaptasi dengan tugas-tugas baru yang menantang secara kognitif.
 
 **Saran Tindak Lanjut:**
-- Terus asah kemampuan kognitif melalui membaca, diskusi, dan latihan logika.
-- Gunakan kekuatan Anda (misal: verbal atau visual) untuk mendukung proses belajar atau bekerja.
-- Ingatlah bahwa IQ hanyalah salah satu indikator potensi manusia. Kreativitas, ketekunan, dan kecerdasan emosional juga sangat penting.`;
+- Terus asah potensi intelektual Anda melalui kegiatan yang menantang otak seperti puzzle, strategi, dan analisis data.
+- Gunakan kemampuan logika Anda untuk membantu dalam pengambilan keputusan yang objektif.
+- Kembangkan pula kecerdasan emosional dan keterampilan praktis untuk menyeimbangkan potensi intelektual Anda.`;
     }
 
     case 'wartegg': {
-      return `### Hasil Tes Wartegg
-Status: **Selesai**
+      return `### Hasil Analisis Tes Wartegg
+Status: **Analisis Rekomendasi Tersedia**
 
-**Deskripsi Tes:**
-Anda telah menyelesaikan 8 kotak gambar dalam Tes Wartegg. Tes ini adalah alat proyektif yang digunakan untuk memahami struktur kepribadian, emosi, dan cara Anda berinteraksi dengan lingkungan.
+Tes Wartegg adalah salah satu alat tes proyektif psikologi yang digunakan untuk mengungkap struktur kepribadian seseorang. Melalui 8 kotak tugas menggambar ini, kita dapat melihat bagaimana Anda mengelola emosi, menghadapi masalah, hingga ambisi masa depan.
 
-**Interpretasi Umum:**
-- **Kotak 1 (Identitas):** Bagaimana Anda melihat diri sendiri.
-- **Kotak 2 (Emosi):** Fleksibilitas dan ekspresi perasaan.
-- **Kotak 3 (Ambisi):** Dorongan untuk maju dan berprestasi.
-- **Kotak 4 (Masalah):** Cara menghadapi hambatan atau beban.
-- **Kotak 5 (Dinamika):** Energi dan cara mengatasi konflik.
-- **Kotak 6 (Logika):** Kemampuan analisis dan pengorganisasian.
-- **Kotak 7 (Sensitivitas):** Kelembutan dan hubungan interpersonal.
-- **Kotak 8 (Sosial):** Rasa aman dan integrasi sosial.
+**Panduan Interpretasi Per Kotak:**
 
-**Catatan:**
-Hasil gambar ini memerlukan interpretasi mendalam oleh seorang Psikolog profesional untuk mendapatkan gambaran kepribadian yang akurat.`;
+1.  **Kotak I (Diri Sendiri):** Melambangkan identitas diri, kepercayaan diri, dan bagaimana Anda menempatkan diri di pusat lingkungan. Gambar yang terpusat dan rapi menunjukkan kesadaran diri yang baik.
+2.  **Kotak II (Afeksi/Emosi):** Fokus pada fleksibilitas emosional dan hubungan sosial. Garis-garis lengkung biasanya menunjukkan ekspresi emosional yang luwes.
+3.  **Kotak III (Ambisi & Motivasi):** Mencerminkan keinginan untuk maju, ambisi, dan efisiensi dalam mencapai tujuan. Garis yang naik menunjukkan semangat yang tinggi.
+4.  **Kotak IV (Beban/Masalah):** Melambangkan bagaimana Anda menghadapi ketakutan, kecemasan, atau masalah yang berat. Cara Anda mengintegrasikan titik hitam kotak ini mencerminkan mekanisme pertahanan diri Anda.
+5.  **Kotak V (Energi & Agresi):** Terkait dengan cara mengatasi ketegangan dan energi psikis dalam bertindak atau menghadapi konflik.
+6.  **Kotak VI (Intelektualitas):** Mengukur kemampuan integrasi, pengorganisasian, dan berpikir logis. Bagaimana Anda menghubungkan dua garis menunjukkan kemandirian berpikir.
+7.  **Kotak VII (Sensitivitas):** Melambangkan kepekaan, kelembutan, dan erotisme (dalam konteks psikologis berarti kemampuan untuk mencintai atau empati).
+8.  **Kotak VIII (Integrasi Sosial):** Menunjukkan perasaan terlindungi, rasa aman, dan bagaimana Anda berbaur dengan norma sosial di masyarakat.
+
+**Langkah Selanjutnya:**
+Gunakan fitur **ANALISA AI** pada halaman hasil untuk mendapatkan interpretasi personal yang lebih mendalam berdasarkan gambar dan judul yang Anda buat. Disarankan juga untuk berkonsultasi dengan Guru BK atau Psikolog untuk interpretasi profesional yang lebih komprehensif.`;
+    }
+
+    case 'school_career': {
+      return `### Hasil Analisis: Perencanaan Karir
+Terima kasih telah mengikuti tes perencanaan karir. Hasil tes Anda menunjukkan preferensi yang berharga mengenai motivasi dan keahlian Anda.
+
+**Interpretasi Singkat:**
+- **Motivasi:** Anda didorong oleh ${scores['social'] ? 'keinginan untuk membantu orang lain' : scores['creative'] ? 'kreativitas dan inovasi' : scores['balance'] ? 'keseimbangan hidup' : 'gaji dan status'}.
+- **Kelebihan:** Anda memiliki keunggulan utama dalam hal ${scores['communication'] ? 'komunikasi' : scores['analytical'] ? 'analisis' : scores['leadership'] ? 'kepemimpinan' : 'bidang teknis'}.
+
+**Saran Pengembangan Karir:**
+1. **Eksplorasi:** Cari tahu lebih lanjut tentang industri yang relevan dengan hasil analisis di atas.
+2. **Magang:** Jika memungkinkan, carilah kesempatan internship atau workshop singkat yang sesuai dengan bidang yang diminati.
+3. **Diskusi:** Bicarakan hasil ini dengan Guru BK atau mentor untuk mendapatkan pandangan lebih luas tentang jalur pendidikan dan karir yang tepat.
+
+*Ingatlah bahwa pilihan karir adalah perjalanan panjang. Fokuslah untuk terus meningkatkan keterampilan yang relevan dengan minat Anda.*`;
     }
 
     default:

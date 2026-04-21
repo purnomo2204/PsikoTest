@@ -89,6 +89,22 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "title", "message", "type", "read", "timestamp"]
+    },
+    "CounselingLog": {
+      "title": "Counseling Log",
+      "description": "Log of counseling sessions between teacher and student.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "topic": { "type": "string" },
+        "notes": { "type": "string" },
+        "interventionStatus": { "type": "string", "enum": ["planned", "ongoing", "completed"] },
+        "isPrivate": { "type": "boolean" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "teacherId", "date", "topic", "notes", "interventionStatus", "timestamp"]
     }
   },
   "firestore": {
@@ -98,6 +114,7 @@
     "/students/{studentId}": { "schema": "Student", "description": "Pre-registered student documents." },
     "/teacher_settings/{uid}": { "schema": "TeacherSettings", "description": "Teacher settings documents." },
     "/custom_tests/{testId}": { "schema": "CustomTest", "description": "Custom test documents." },
-    "/notifications/{notifId}": { "schema": "Notification", "description": "Notification documents." }
+    "/notifications/{notifId}": { "schema": "Notification", "description": "Notification documents." },
+    "/counseling_logs/{logId}": { "schema": "CounselingLog", "description": "Counseling log documents." }
   }
 }

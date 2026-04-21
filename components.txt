@@ -1,0 +1,60 @@
+12:const handleDownloadPDF = (result: TestResult, teacherSettings: any) => {
+226:export const handleDownloadDetailedReport = (student: any, allResults: TestResult[], teacherSettings: TeacherSettings | null) => {
+326:  const printMarkdown = (text: string) => {
+656:const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error' | 'info', onClose: () => void }) => {
+680:const ConfirmModal = ({ title, message, onConfirm, onCancel }: { title: string, message: string, onConfirm: () => void, onCancel: () => void }) => {
+709:const StudentGuideModal = ({ onClose }: { onClose: () => void }) => {
+928:const TestCard = ({ test, type, onSelect, onPreview, recommendation, results }: { test: any, type: TestType, onSelect: (type: TestType) => void, onPreview: (type: TestType) => void, recommendation?: string, results: TestResult[] }) => {
+1006:const TestPreviewModal = ({ type, onClose, onStart }: { type: TestType, onClose: () => void, onStart: (type: TestType) => void }) => {
+1113:const WarteggCanvas = ({ index, onSave, initialData }: { index: number, onSave: (data: string) => void, initialData?: string }) => {
+1118:  const drawStimulus = (ctx: CanvasRenderingContext2D) => {
+1181:  const saveToHistory = () => {
+1190:  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+1211:  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+1226:  const stopDrawing = () => {
+1233:  const undo = () => {
+1255:  const clear = () => {
+1309:const SubjectInterestTest = ({ onComplete }: { onComplete: (scores: Record<string, number>, extraData?: any) => void }) => {
+1329:  const toggleSubject = (id: string) => {
+1335:  const handleReasonChange = (id: string, text: string) => {
+1339:  const handleSubmit = () => {
+1434:const WarteggTest = ({ onComplete }: { onComplete: (scores: Record<string, number>, extraData?: any) => void }) => {
+1440:  const handleSaveDrawing = (index: number, data: string) => {
+1613:const TestForm = ({ type, customTest, onComplete, onCancel, isAnalyzingTest }: { type: TestType, customTest?: any, onComplete: (scores: Record<string, number>, extraData?: any) => void, onCancel: () => void, isAnalyzingTest?: boolean }) => {
+1620:  const handleAnswer = (questionId: string, value: string, score: number = 1) => {
+1634:  const handleBack = () => {
+1748:const ResultView = ({ result, onBack, showToast, teacherSettings }: { result: TestResult, onBack: () => void, showToast: (m: string, t?: 'success' | 'error' | 'info') => void, teacherSettings: TeacherSettings | null }) => {
+1773:  const renderChart = () => {
+2045:  const handleDownloadAIExplanation = () => {
+2338:const TestCreator = ({ onBack, showToast, user }: { onBack: () => void, showToast: (m: string, t?: 'success' | 'error' | 'info') => void, user: UserProfile }) => {
+2439:  const addQuestion = () => {
+2447:  const addOption = (qIdx: number) => {
+2786:  const handleDownloadPDF = () => {
+3013:  const handleDownloadPDF = () => {
+3084:  const handleExportExcel = () => {
+3284:  const toggleSelectAll = () => {
+3292:  const toggleSelect = (id: string) => {
+3852:  const toggleSelectAll = () => {
+3860:  const toggleSelect = (id: string) => {
+4072:  const handleDownloadPDF = () => {
+4514:  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+4522:  const handleSelectOne = (id: string) => {
+4530:  const handleDownloadPDF = () => {
+4912:const CounselingDashboard = ({ students, counselingLogs, onOpenProfile }: { students: StudentData[], counselingLogs: CounselingLog[], onOpenProfile: (s: StudentData) => void }) => {
+5088:const AdminDashboard = ({ results: rawResults, classes, students, teacherSettings, user, setView, showToast, setTestResult, allUsers, notifications, counselingLogs }: { results: TestResult[], classes: ClassInfo[], students: StudentData[], teacherSettings: TeacherSettings | null, user: UserProfile, setView: (v: any) => void, showToast: (m: string, t?: 'success' | 'error' | 'info') => void, setTestResult: (r: TestResult | null) => void, allUsers: any[], notifications: AppNotification[], counselingLogs: CounselingLog[] }) => {
+5141:  const toggleSelectRiwayatAll = () => {
+5149:  const toggleSelectRiwayat = (id: string) => {
+5292:  const handleExportStudents = () => {
+5551:  const toggleSelectHistory = (id: string) => {
+5557:  const toggleSelectAllHistory = () => {
+5565:  const handleDeleteSelectedHistory = () => {
+5652:  const handleDownloadClassReport = () => {
+5741:  const handleDownloadTemplate = () => {
+5752:  const handleUploadStudents = (e: React.ChangeEvent<HTMLInputElement>) => {
+5768:        const findValue = (searchKeys: string[]) => {
+5827:  const getComparisonData = () => {
+8171:const IdentityForm = ({ classes, students, onSave, onLogout, initialStep = 'initial' }: { classes: ClassInfo[], students: StudentData[], onSave: (data: { name: string, className: string, nisn?: string, schoolName?: string, jenjang?: string }) => void, onLogout: () => void, initialStep?: 'initial' | 'registered' | 'studentCard' | 'guest' }) => {
+8184:  const handleCheckNisn = () => {
+8498:const SplashWelcome = ({ onStart }: { onStart: () => void }) => {
+8583:  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+8877:  const getRecommendation = (type: TestType) => {
