@@ -65,10 +65,12 @@ service cloud.firestore {
              data.studentId is string &&
              data.teacherId is string &&
              data.studentName is string && data.studentName.size() > 0 && data.studentName.size() < 100 &&
-             data.testType in ['learning_style', 'multiple_intelligences', 'personality', 'aptitude_interest', 'school_major', 'anxiety', 'wartegg'] &&
+             data.testType in ['learning_style', 'multiple_intelligences', 'personality', 'aptitude_interest', 'school_major', 'anxiety', 'wartegg', 'school_career', 'subject_interest', 'cfit'] &&
              data.scores is map &&
              data.analysis is string &&
-             (data.timestamp is timestamp || data.timestamp == request.time);
+             (data.timestamp is timestamp || data.timestamp == request.time) &&
+             (!('aiExplanation' in data) || (data.aiExplanation is string && data.aiExplanation.size() < 50000)) &&
+             (!('visualizationType' in data) || data.visualizationType == null || data.visualizationType is string);
     }
 
     function isValidCounselingLog(data) {
@@ -98,7 +100,9 @@ service cloud.firestore {
 
     match /test_results/{resultId} {
       allow read: if (isAuthenticated() && request.auth.uid == resource.data.studentId) || isAdmin() || (isTeacher() && (resource.data.teacherId == request.auth.uid || (isLegacyAdmin() && resource.data.teacherId == 'admin')));
-      allow create: if isEmergencyUser(request.resource.data.studentId) || (isAuthenticated() && request.auth.uid == request.resource.data.studentId) || isAdmin() || isTeacher();
+      allow create: if (isEmergencyUser(request.resource.data.studentId) || (isAuthenticated() && request.auth.uid == request.resource.data.studentId) || isAdmin() || isTeacher()) && isValidTestResult(request.resource.data);
+      allow update: if (isAdmin() || (isTeacher() && (resource.data.teacherId == request.auth.uid || (isLegacyAdmin() && resource.data.teacherId == 'admin'))) || (isAuthenticated() && request.auth.uid == resource.data.studentId) || isEmergencyUser(resource.data.studentId))
+                    && isValidTestResult(request.resource.data) && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['aiExplanation']));
       allow delete: if isAdmin() || (isTeacher() && (resource.data.teacherId == request.auth.uid || (isLegacyAdmin() && resource.data.teacherId == 'admin')));
     }
 

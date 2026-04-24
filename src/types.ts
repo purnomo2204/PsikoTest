@@ -84,6 +84,9 @@ export interface Question {
 export interface TestData {
   title: string;
   description: string;
+  educationalObjective?: string;
+  questionTypeDesc?: string;
+  resultInterpretation?: string;
   questions: Question[];
 }
 
