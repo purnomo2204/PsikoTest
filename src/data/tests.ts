@@ -206,11 +206,11 @@ export const TESTS: Record<TestType, TestData> = {
     ]
   },
   school_major: {
-    title: "Tes Penjurusan Sekolah Lanjut (SMA/SMK)",
-    description: "Rekomendasi jurusan SMA (IPA/IPS/Bahasa) atau SMK berdasarkan minat dan kemampuan.",
-    educationalObjective: "Tes ini sangat penting untuk membantu kamu kelas 9 SMP yang sedang bingung memilih mau lanjut SMA jurusan apa (IPA/IPS/Bahasa), atau lebih cocok masuk SMK (Sekolah Menengah Kejuruan) biar bisa langsung bekerja/praktik.",
-    questionTypeDesc: "Pertanyaannya berkaitan dengan mata pelajaran favoritmu dan hal-hal yang suka kamu observasi atau praktikkan dalam kehidupan sehari-hari.",
-    resultInterpretation: "Berdasarkan skor dari jawabanmu, tes ini akan merekomendasikan pilihan apakah kamu lebih memiliki ketertarikan di ilmu Sains (IPA), ilmu pertimbangan Sosial/Ekonomi (IPS), sastra (Bahasa), atau sekolah keterampilan praktis (SMK). Gunakan ini sebagai referensi, bukan patokan mutlak!",
+    title: "Tes Penjurusan Sekolah",
+    description: "Rekomendasi peminatan di SMA (IPA/IPS/Bahasa) atau pilihan SMK berdasarkan minat dan potensi akademikmu.",
+    educationalObjective: "Tes ini dirancang untuk membantu siswa (terutama jenjang SMP dan awal SMA) dalam menentukan arah peminatan studi yang paling sesuai. Apakah kamu lebih condong ke bidang Sains, Sosial, Bahasa, atau lebih ke arah Keterampilan Praktis (SMK). Mengetahui peminatan sejak dini akan membantumu lebih fokus dalam mengejar prestasi dan cita-cita.",
+    questionTypeDesc: "Kamu akan menjawab berbagai pertanyaan seputar mata pelajaran favorit, hobi, dan aspirasi masa depanmu. Tidak ada jawaban benar atau salah, cukup pilih yang paling sesuai dengan dirimu.",
+    resultInterpretation: "Hasil analisis akan mengelompokkan minatmu ke dalam empat kategori utama: MIPA (Matematika dan IPA), IPS (Ilmu Pengetahuan Sosial), Bahasa dan Budaya, atau SMK (Sekolah Menengah Kejuruan). Gunakanlah hasil ini sebagai panduan awal dalam berdiskusi dengan orang tua atau Guru BK.",
     questions: [
       { id: "sm1", text: "Mata pelajaran apa yang paling kamu sukai?", options: [{ text: "Matematika/Fisika/Biologi", value: "ipa" }, { text: "Ekonomi/Sosiologi/Geografi", value: "ips" }, { text: "Bahasa Indonesia/Inggris/Asing", value: "bahasa" }, { text: "Pelajaran Praktik/Keterampilan", value: "smk" }] },
       { id: "sm2", text: "Saya suka melakukan eksperimen di laboratorium.", options: [{ text: "Ya", value: "ipa" }, { text: "Tidak", value: "ips" }] },
@@ -388,6 +388,31 @@ export const TESTS: Record<TestType, TestData> = {
       }
     ]
   },
+  disliked_subjects: {
+    title: "Mata Pelajaran yang Tidak Disukai",
+    description: "Identifikasi mata pelajaran yang kurang Anda sukai beserta alasannya untuk perbaikan metode belajar.",
+    questions: [
+      { 
+        id: "ds1", 
+        text: "Pelajaran apa yang tidak Anda sukai? (Pilih satu atau lebih dan berikan alasannya)", 
+        options: [
+          { text: "Pendidikan Agama dan Budi Pekerti", value: "agama" },
+          { text: "Pendidikan Pancasila dan Kewarganegaraan", value: "ppkn" },
+          { text: "Bahasa Indonesia", value: "b_indo" },
+          { text: "Matematika", value: "mtk" },
+          { text: "Ilmu Pengetahuan Alam (IPA)", value: "ipa" },
+          { text: "Ilmu Pengetahuan Sosial (IPS)", value: "ips" },
+          { text: "Bahasa Inggris", value: "b_ing" },
+          { text: "Seni Budaya", value: "seni" },
+          { text: "Pendidikan Jasmani, Olahraga, dan Kesehatan (PJOK)", value: "pjok" },
+          { text: "Prakarya", value: "prakarya" },
+          { text: "Informatika", value: "informatika" },
+          { text: "Bahasa Daerah", value: "b_daerah" },
+          { text: "Bimbingan Konseling (BK)", value: "bk" }
+        ] 
+      }
+    ]
+  },
   school_career: {
     title: "Tes Perencanaan Karir",
     description: "Rekomendasi karir masa depan berdasarkan minat, kemampuan, dan nilai-nilai pribadi.",
@@ -433,6 +458,21 @@ export const TESTS: Record<TestType, TestData> = {
       { id: "sc39", text: "Jika kamu sudah cukup kaya, apa yang tetap kamu kerjakan?", options: [{ text: "Meneruskan penelitian dan belajar", value: "expert" }, { text: "Mengelola investasi dan bisnis baru", value: "entrepreneur" }, { text: "Fokus pada kegiatan sosial/filantropi", value: "impactful" }, { text: "Memimpin yayasan atau organisasi", value: "high_position" }] },
       { id: "sc40", text: "Apa yang kamu cari dalam sebuah perjalanan karir?", options: [{ text: "Kedalaman ilmu dan pengakuan ahli", value: "expert" }, { text: "Kebebasan dan kemandirian finansial", value: "entrepreneur" }, { text: "Kebermaknaan bagi orang banyak", value: "impactful" }, { text: "Pengaruh, kuasa, dan jabatan", value: "high_position" }] }
     ]
+  },
+  liked_teachers: {
+    title: "Guru Mata Pelajaran yang Disukai",
+    description: "Identifikasi guru mata pelajaran yang Anda sukai beserta alasannya untuk memahami korelasi dengan prestasi.",
+    questions: []
+  },
+  disliked_teachers: {
+    title: "Guru Mata Pelajaran yang Tidak Disukai",
+    description: "Identifikasi guru mata pelajaran yang kurang Anda sukai beserta alasannya untuk memahami korelasi dengan prestasi.",
+    questions: []
+  },
+  dreams: {
+    title: "Tes Cita - Cita",
+    description: "Ekspresikan rencana masa depanmu mengenai pendidikan lanjut dan cita-citamu.",
+    questions: [] // Handled by custom UI
   }
 };
 
@@ -441,9 +481,25 @@ export const getShortResult = (testType: TestType, scores: Record<string, number
   const testTitle = testInfo ? testInfo.title.replace('Tes ', '') : testType;
 
   switch (testType) {
+    case 'dreams': {
+      const aspirations = (scores as any).aspirations || [];
+      return `Cita-cita: ${aspirations.length > 0 ? aspirations[0] : 'Tersimpan'}`;
+    }
+    case 'liked_teachers': {
+      const selected = Object.keys(scores).filter(k => scores[k] > 0);
+      return `Guru Disukai: ${selected.length} Mapel`;
+    }
+    case 'disliked_teachers': {
+      const selected = Object.keys(scores).filter(k => scores[k] > 0);
+      return `Guru Tidak Disukai: ${selected.length} Mapel`;
+    }
     case 'subject_interest': {
       const selected = Object.keys(scores).filter(k => scores[k] > 0);
       return `Minat Mapel: ${selected.length} Pelajaran`;
+    }
+    case 'disliked_subjects': {
+      const selected = Object.keys(scores).filter(k => scores[k] > 0);
+      return `Mapel Tidak Disukai: ${selected.length} Pelajaran`;
     }
     case 'learning_style': {
       const maxLs = Object.entries(scores).reduce((a, b) => a[1] > b[1] ? a : b);
@@ -539,6 +595,94 @@ Minat terhadap mata pelajaran tertentu menunjukkan kecenderungan bakat dan poten
 - Teruslah eksplorasi alasan mengapa Anda menyukai pelajaran tersebut.
 - Diskusikan hasil ini dengan guru mata pelajaran terkait untuk mendapatkan bimbingan lebih lanjut.
 - Gunakan minat ini sebagai motivasi untuk tetap semangat belajar di pelajaran lainnya juga.`;
+    }
+
+    case 'liked_teachers': {
+      const selected = Object.entries(scores)
+        .filter(([k, v]) => v > 0)
+        .map(([k]) => {
+          const map: Record<string, string> = {
+            agama: "Pendidikan Agama", ppkn: "PPKn", b_indo: "Bahasa Indonesia",
+            mtk: "Matematika", ipa: "IPA", ips: "IPS", b_ing: "Bahasa Inggris",
+            seni: "Seni Budaya", pjok: "PJOK", prakarya: "Prakarya",
+            informatika: "Informatika", b_daerah: "Bahasa Daerah", bk: "BK"
+          };
+          return map[k] || k;
+        });
+
+      return `### Hasil Analisis: Guru Mata Pelajaran yang Disukai
+Siswa telah mengidentifikasi **${selected.length}** mata pelajaran dengan guru yang disukai:
+${selected.map(s => `- ${s}`).join('\n')}
+
+**Interpretasi:**
+Kesenangan siswa terhadap guru mata pelajaran memiliki korelasi positif yang sangat kuat dengan motivasi dan prestasi akademik. 
+1. **Motivasi Ekstrinsik:** Hubungan yang baik antara guru dan siswa menciptakan lingkungan belajar yang aman dan menyenangkan.
+2. **Transfer Pengetahuan:** Siswa cenderung lebih mudah menyerap materi dari sosok yang mereka kagumi atau hargai.
+3. **Minat Belajar:** Guru yang disukai seringkali berhasil membangkitkan minat siswa terhadap materi yang diajarkan.
+
+**Saran:**
+- Pertahankan hubungan positif ini dan gunakan sebagai pendorong untuk mendalami materi pelajaran tersebut.
+- Identifikasi perilaku atau metode guru yang disukai untuk diterapkan pada subjek lain.
+- Tetaplah fokus pada penguasaan materi di samping kecocokan dengan figur pengajar.`;
+    }
+
+    case 'disliked_teachers': {
+      const selected = Object.entries(scores)
+        .filter(([k, v]) => v > 0)
+        .map(([k]) => {
+          const map: Record<string, string> = {
+            agama: "Pendidikan Agama", ppkn: "PPKn", b_indo: "Bahasa Indonesia",
+            mtk: "Matematika", ipa: "IPA", ips: "IPS", b_ing: "Bahasa Inggris",
+            seni: "Seni Budaya", pjok: "PJOK", prakarya: "Prakarya",
+            informatika: "Informatika", b_daerah: "Bahasa Daerah", bk: "BK"
+          };
+          return map[k] || k;
+        });
+
+      return `### Hasil Analisis: Guru Mata Pelajaran yang Tidak Disukai
+Siswa telah mengidentifikasi **${selected.length}** mata pelajaran dengan guru yang kurang disukai:
+${selected.map(s => `- ${s}`).join('\n')}
+
+**Interpretasi:**
+Ketidakcocokan dengan guru mata pelajaran dapat menjadi hambatan dalam proses belajar, namun juga merupakan peluang untuk mengasah "adaptabilitas".
+1. **Hambatan Emosional:** Rasa kurang suka bisa menghalangi fokus saat menerima materi di kelas.
+2. **Tantangan Adaptasi:** Belajar bekerja sama dengan berbagai tipe kepribadian (termasuk yang tidak cocok) adalah keterampilan hidup yang penting.
+3. **Pemisahan Konten:** Sangat penting bagi siswa untuk belajar memisahkan antara materi pelajaran (ilmu) dengan pengajarnya (figur).
+
+**Saran:**
+- Cobalah untuk tetap fokus pada manfaat ilmu dari mata pelajaran tersebut tanpa terlalu terpengaruh oleh faktor personal pengajar.
+- Sampaikan kendala belajar secara sopan melalui Bimbingan Konseling (BK) jika hambatan dirasa sangat mengganggu prestasi.
+- Gunakan sumber belajar tambahan (buku, video, les) untuk membantu penguasaan materi yang dirasa sulit di kelas.`;
+    }
+
+    case 'disliked_subjects': {
+      const selected = Object.entries(scores)
+        .filter(([k, v]) => v > 0)
+        .map(([k]) => {
+          const map: Record<string, string> = {
+            agama: "Pendidikan Agama", ppkn: "PPKn", b_indo: "Bahasa Indonesia",
+            mtk: "Matematika", ipa: "IPA", ips: "IPS", b_ing: "Bahasa Inggris",
+            seni: "Seni Budaya", pjok: "PJOK", prakarya: "Prakarya",
+            informatika: "Informatika", b_daerah: "Bahasa Daerah", bk: "BK"
+          };
+          return map[k] || k;
+        });
+
+      return `### Hasil Analisis: Mata Pelajaran yang Tidak Disukai
+Anda telah mengidentifikasi **${selected.length}** mata pelajaran yang kurang Anda sukai:
+${selected.map(s => `- ${s}`).join('\n')}
+
+**Interpretasi:**
+Ketidaksukaan terhadap mata pelajaran tertentu seringkali bukan karena kurangnya kemampuan, melainkan bisa disebabkan oleh beberapa faktor:
+1. **Metode Belajar:** Mungkin metode penyampaian materi kurang sesuai dengan gaya belajar Anda.
+2. **Tingkat Kesulitan:** Ada konsep-konsep dasar yang mungkin terlewati sehingga materi selanjutnya terasa sulit.
+3. **Relevansi:** Kurangnya pemahaman tentang manfaat pelajaran tersebut dalam kehidupan nyata.
+
+**Saran:**
+- Tinjau kembali alasan yang Anda berikan untuk setiap pelajaran ini.
+- Diskusikan dengan guru atau konselor mengenai hambatan belajar yang Anda temui.
+- Cobalah pendekatan belajar yang berbeda (misal: menggunakan video jika Anda tipe visual) untuk materi yang dianggap sulit.
+- Ingatlah bahwa menguasai kompetensi dasar di setiap pelajaran tetap penting untuk perkembangan akademik yang seimbang.`;
     }
 
     case 'learning_style': {
@@ -821,6 +965,39 @@ Terima kasih telah mengikuti tes perencanaan karir. Hasil tes Anda memberikan ga
 3. **Konsultasi Lanjutan:** Bicarakan grafik hasil tes Anda dengan Guru BK untuk memetakan jurusan sekolah atau kuliah yang paling relevan.
 
 *Ingatlah bahwa pilihan karir adalah perjalanan panjang yang dinamis. Gunakan hasil ini sebagai kompas untuk melangkah lebih percaya diri.*`;
+    }
+
+    case "dreams": {
+      const nextStep = (scores as any).nextStep || "";
+      const schoolInfo = (scores as any).schoolInfo || "";
+      const reason = (scores as any).reason || "";
+      const aspirations = (scores as any).aspirations || [];
+
+      const map: Record<string, string> = {
+        study: "Melanjutkan Belajar",
+        course: "Kursus",
+        stop: "Tidak Melanjutkan",
+        work: "Bekerja",
+        other: "Lainnya",
+      };
+
+      return `### Hasil Analisis: Rencana Masa Depan & Cita-Cita
+
+**1. Rencana Setelah Lulus Sekolah:**
+- **Pilihan:** ${map[nextStep] || nextStep}
+- **Detail:** ${schoolInfo}
+- **Alasan:** ${reason}
+
+**2. Cita-Cita yang Ingin Dicapai:**
+${Array.isArray(aspirations) && aspirations.length > 0 ? aspirations.map((a: string) => `- ${a}`).join("\n") : "- Belum ditentukan"}
+
+**Interpretasi:**
+Memiliki rencana yang jelas setelah lulus sekolah merupakan langkah awal yang sangat baik. Cita-cita yang kuat akan menjadi motivasi utamamu dalam belajar dan menghadapi tantangan di masa depan.
+
+**Saran:**
+- Fokuslah pada persiapan yang dibutuhkan untuk mencapai rencana ${map[nextStep] || "masa depanmu"} tersebut.
+- Jangan ragu untuk mengeksplorasi lebih dalam mengenai cita-citamu dan cara mencapainya.
+- Konsultasikan rencana ini dengan Guru BK atau orang tua secara berkala.`;
     }
 
     default:

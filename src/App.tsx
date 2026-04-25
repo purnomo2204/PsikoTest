@@ -35,18 +35,20 @@ import {
   Question,
   StudentData,
   TeacherSettings,
+  AppSettings,
   AppNotification,
   CounselingLog,
 } from "./types";
 import { TESTS, analyzeResult, getShortResult } from "./data/tests";
+import { Guide } from "./components/Guide";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { GoogleGenAI, Type } from "@google/genai";
 
-const handleDownloadPDF = (result: TestResult, teacherSettings: any) => {
+const handleDownloadPDF = (result: TestResult, teacherSettings: any, customTests: any[] = []) => {
   const doc = new jsPDF();
-  const testTitle = TESTS[result.testType].title;
+  const testTitle = TESTS[result.testType as TestType]?.title || customTests.find(ct => ct.id === result.testType)?.title || result.testType;
   const isUmum = result.studentClass.toLowerCase() === "umum";
 
   let currentY = 15;
@@ -172,6 +174,77 @@ const handleDownloadPDF = (result: TestResult, teacherSettings: any) => {
       }
     });
     currentY += 5;
+  } else if (result.testType === "disliked_subjects") {
+    const selected = Object.entries(result.scores).filter(([_, v]) => v > 0);
+    selected.forEach(([id, _]) => {
+      const map: Record<string, string> = {
+        agama: "Pendidikan Agama",
+        ppkn: "PPKn",
+        b_indo: "Bahasa Indonesia",
+        mtk: "Matematika",
+        ipa: "IPA",
+        ips: "IPS",
+        b_ing: "Bahasa Inggris",
+        seni: "Seni Budaya",
+        pjok: "PJOK",
+        prakarya: "Prakarya",
+        informatika: "Informatika",
+        b_daerah: "Bahasa Daerah",
+        bk: "BK",
+      };
+      const subjectName = map[id] || id;
+      const reason = result.extraData?.reasons?.[id] || "-";
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text(`• ${subjectName}`, 20, currentY);
+      currentY += 5;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "italic");
+      doc.setTextColor(100, 116, 139);
+      const splitReason = doc.splitTextToSize(`Alasan Tidak Suka: ${reason}`, 160);
+      doc.text(splitReason, 25, currentY);
+      currentY += splitReason.length * 4 + 2;
+
+      if (currentY > 270) {
+        doc.addPage();
+        currentY = 20;
+      }
+    });
+    currentY += 5;
+  } else if (result.testType === "liked_teachers" || result.testType === "disliked_teachers") {
+    const selected = Object.entries(result.scores).filter(([_, v]) => v > 0);
+    selected.forEach(([id, _]) => {
+      const map: Record<string, string> = {
+        agama: "Pendidikan Agama", ppkn: "PPKn", b_indo: "Bahasa Indonesia",
+        mtk: "Matematika", ipa: "IPA", ips: "IPS", b_ing: "Bahasa Inggris",
+        seni: "Seni Budaya", pjok: "PJOK", prakarya: "Prakarya",
+        informatika: "Informatika", b_daerah: "Bahasa Daerah", bk: "BK"
+      };
+      const subjectName = map[id] || id;
+      const reason = result.extraData?.reasons?.[id] || "-";
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text(`• Guru ${subjectName}`, 20, currentY);
+      currentY += 5;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "italic");
+      doc.setTextColor(100, 116, 139);
+      const splitReason = doc.splitTextToSize(`Alasan: ${reason}`, 160);
+      doc.text(splitReason, 25, currentY);
+      currentY += splitReason.length * 4 + 2;
+
+      if (currentY > 270) {
+        doc.addPage();
+        currentY = 20;
+      }
+    });
+    currentY += 5;
   } else if (result.testType === "wartegg") {
     const drawings = result.extraData?.drawings || {};
     const titles = result.extraData?.titles || {};
@@ -213,6 +286,48 @@ const handleDownloadPDF = (result: TestResult, teacherSettings: any) => {
       xPos += imgSize + margin;
     });
     currentY = yPos + imgSize + 20;
+  } else if (result.testType === "dreams") {
+    const nextStep = (result.scores as any).nextStep || "";
+    const schoolInfo = (result.scores as any).schoolInfo || "";
+    const reason = (result.scores as any).reason || "";
+    const aspirations = (result.scores as any).aspirations || [];
+
+    const map: Record<string, string> = {
+      study: "Melanjutkan Belajar",
+      course: "Kursus",
+      stop: "Tidak Melanjutkan",
+      work: "Bekerja",
+      other: "Lainnya",
+    };
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("1. Rencana Sekolah Lanjut:", 20, currentY);
+    currentY += 6;
+
+    doc.setFont("helvetica", "normal");
+    doc.text(`Pilihan: ${map[nextStep] || nextStep}`, 25, currentY);
+    currentY += 5;
+    const splitDetail = doc.splitTextToSize(`Detail: ${schoolInfo}`, 160);
+    doc.text(splitDetail, 25, currentY);
+    currentY += splitDetail.length * 5 + 1;
+    const splitReason = doc.splitTextToSize(`Alasan: ${reason}`, 160);
+    doc.text(splitReason, 25, currentY);
+    currentY += splitReason.length * 5 + 3;
+
+    doc.setFont("helvetica", "bold");
+    doc.text("2. Cita-Cita:", 20, currentY);
+    currentY += 6;
+
+    doc.setFont("helvetica", "normal");
+    if (Array.isArray(aspirations)) {
+      aspirations.forEach((a: string) => {
+        const splitAspiration = doc.splitTextToSize(`- ${a}`, 160);
+        doc.text(splitAspiration, 25, currentY);
+        currentY += splitAspiration.length * 5;
+      });
+    }
+    currentY += 5;
   } else {
     const chartData = Object.entries(result.scores).map(([name, value]) => ({
       name: name.charAt(0).toUpperCase() + name.slice(1).replace("_", " "),
@@ -320,6 +435,7 @@ export const handleDownloadDetailedReport = (
   student: any,
   allResults: TestResult[],
   teacherSettings: TeacherSettings | null,
+  customTests: any[] = []
 ) => {
   const doc = new jsPDF();
   const isUmum =
@@ -331,7 +447,7 @@ export const handleDownloadDetailedReport = (
       (r.studentName === student.name && r.studentClass === student.className),
   );
 
-  const targetTests: TestType[] = [
+  const baseTests: string[] = [
     "learning_style",
     "personality",
     "multiple_intelligences",
@@ -341,8 +457,15 @@ export const handleDownloadDetailedReport = (
     "cfit",
     "wartegg",
     "subject_interest",
+    "disliked_subjects",
     "school_career",
+    "dreams",
+    "liked_teachers",
+    "disliked_teachers",
   ];
+
+  const takenTests = Array.from(new Set(studentResults.map((r) => r.testType)));
+  const targetTests = Array.from(new Set([...baseTests, ...takenTests]));
 
   let currentY = 15;
 
@@ -444,10 +567,11 @@ export const handleDownloadDetailedReport = (
         (a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0),
       );
     const latest = testsOfType.length > 0 ? testsOfType[0] : null;
+    const testTitle = TESTS[type as TestType]?.title || customTests.find(ct => ct.id === type)?.title || type;
     return [
       index + 1,
-      TESTS[type].title,
-      latest ? getShortResult(type, latest.scores) : "Belum diikuti",
+      testTitle,
+      latest ? getShortResult(type as TestType, latest.scores) : "Belum diikuti",
     ];
   });
 
@@ -532,12 +656,12 @@ export const handleDownloadDetailedReport = (
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
     doc.setTextColor(5, 150, 105);
-    const safeTitle = TESTS[testType]?.title || testType;
+    const safeTitle = TESTS[testType as TestType]?.title || customTests.find(ct => ct.id === testType)?.title || testType;
     doc.text(safeTitle.toUpperCase(), 20, currentY);
     currentY += 8;
 
     if (latestTest) {
-      const shortResult = getShortResult(testType, latestTest.scores);
+      const shortResult = getShortResult(testType as TestType, latestTest.scores);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(30, 41, 59);
@@ -643,6 +767,50 @@ export const handleDownloadDetailedReport = (
         });
         currentY += 5;
       }
+
+      if (testType === "disliked_subjects" && latestTest.extraData?.reasons) {
+        const selected = Object.entries(latestTest.scores).filter(
+          ([_, v]) => v > 0,
+        );
+        selected.forEach(([id, _]) => {
+          const map: Record<string, string> = {
+            agama: "Pendidikan Agama",
+            ppkn: "PPKn",
+            b_indo: "Bahasa Indonesia",
+            mtk: "Matematika",
+            ipa: "IPA",
+            ips: "IPS",
+            b_ing: "Bahasa Inggris",
+            seni: "Seni Budaya",
+            pjok: "PJOK",
+            prakarya: "Prakarya",
+            informatika: "Informatika",
+            b_daerah: "Bahasa Daerah",
+            bk: "BK",
+          };
+          const subjectName = map[id] || id;
+          const reason = latestTest.extraData.reasons[id] || "-";
+
+          if (currentY > 270) {
+            doc.addPage();
+            currentY = 20;
+          }
+
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 41, 59);
+          doc.text(`• ${subjectName}`, 25, currentY);
+          currentY += 5;
+
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "italic");
+          doc.setTextColor(100, 116, 139);
+          const splitReason = doc.splitTextToSize(`Alasan Tidak Suka: ${reason}`, 155);
+          doc.text(splitReason, 30, currentY);
+          currentY += splitReason.length * 4 + 4;
+        });
+        currentY += 5;
+      }
     } else {
       doc.setFont("helvetica", "italic");
       doc.setFontSize(10);
@@ -694,6 +862,7 @@ import {
   Brain,
   Compass,
   Heart,
+  Image as ImageIcon,
   GraduationCap,
   ShieldCheck,
   Home,
@@ -709,6 +878,7 @@ import {
   Filter,
   Calendar,
   Plus,
+  Rocket,
   Pencil,
   Trash2,
   Save,
@@ -1156,6 +1326,7 @@ const Navbar = ({
   showNotifications,
   setShowNotifications,
   markAsRead,
+  appSettings,
 }: {
   user: UserProfile | null;
   onLogout: () => void;
@@ -1166,6 +1337,7 @@ const Navbar = ({
   showNotifications: boolean;
   setShowNotifications: (v: boolean) => void;
   markAsRead: (id: string) => void;
+  appSettings: AppSettings | null;
 }) => {
   const isAdminView = view === "admin" || view === "create-test";
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -1191,8 +1363,8 @@ const Navbar = ({
           {user && (
             <div className="flex items-center gap-5">
               <img
-                src="https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9"
-                alt="Dutatama Logo"
+                src={appSettings?.logoUrl || "https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9"}
+                alt="Logo"
                 className="h-7 w-auto opacity-90 hidden sm:block"
                 referrerPolicy="no-referrer"
               />
@@ -1431,8 +1603,12 @@ const TestCard = ({
     anxiety: Heart,
     wartegg: Palette,
     subject_interest: Star,
+    disliked_subjects: Heart,
+    liked_teachers: Users,
+    disliked_teachers: AlertCircle,
     cfit: Zap,
     school_career: Briefcase,
+    dreams: Rocket,
   };
   const Icon = icons[type];
 
@@ -2243,6 +2419,896 @@ const SubjectInterestTest = ({
   );
 };
 
+const DislikedSubjectsTest = ({
+  onComplete,
+  userId,
+  onCancel,
+}: {
+  onComplete: (scores: Record<string, number>, extraData?: any) => void;
+  userId: string;
+  onCancel: () => void;
+}) => {
+  const subjects = [
+    { id: "agama", name: "Pendidikan Agama dan Budi Pekerti" },
+    { id: "ppkn", name: "Pendidikan Pancasila dan Kewarganegaraan" },
+    { id: "b_indo", name: "Bahasa Indonesia" },
+    { id: "mtk", name: "Matematika" },
+    { id: "ipa", name: "Ilmu Pengetahuan Alam (IPA)" },
+    { id: "ips", name: "Ilmu Pengetahuan Sosial (IPS)" },
+    { id: "b_ing", name: "Bahasa Inggris" },
+    { id: "seni", name: "Seni Budaya" },
+    { id: "pjok", name: "Pendidikan Jasmani, Olahraga, dan Kesehatan (PJOK)" },
+    { id: "prakarya", name: "Prakarya" },
+    { id: "informatika", name: "Informatika" },
+    { id: "b_daerah", name: "Bahasa Daerah" },
+    { id: "bk", name: "Bimbingan Konseling (BK)" },
+  ];
+
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [pendingProgress, setPendingProgress] = useState<any>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(
+      getProgressKey(userId, "disliked_subjects"),
+    );
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.selectedSubjects?.length > 0) {
+          setPendingProgress(parsed);
+          setShowResumeModal(true);
+        }
+      } catch (e) {
+        console.error("Error parsing saved progress:", e);
+      }
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (selectedSubjects.length > 0) {
+      localStorage.setItem(
+        getProgressKey(userId, "disliked_subjects"),
+        JSON.stringify({
+          selectedSubjects,
+          reasons,
+          timestamp: Date.now(),
+        }),
+      );
+    }
+  }, [selectedSubjects, reasons, userId]);
+
+  const handleResume = () => {
+    if (pendingProgress) {
+      setSelectedSubjects(pendingProgress.selectedSubjects || []);
+      setReasons(pendingProgress.reasons || {});
+    }
+    setShowResumeModal(false);
+  };
+
+  const handleStartFresh = () => {
+    localStorage.removeItem(getProgressKey(userId, "disliked_subjects"));
+    setSelectedSubjects([]);
+    setReasons({});
+    setShowResumeModal(false);
+  };
+
+  const toggleSubject = (id: string) => {
+    setSelectedSubjects((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
+  };
+
+  const handleReasonChange = (id: string, text: string) => {
+    setReasons((prev) => ({ ...prev, [id]: text }));
+  };
+
+  const handleSubmit = () => {
+    if (selectedSubjects.length === 0) {
+      alert("Silakan pilih minimal satu mata pelajaran.");
+      return;
+    }
+
+    const scores: Record<string, number> = {};
+    const sanitizedReasons: Record<string, string> = {};
+    selectedSubjects.forEach((s) => {
+      scores[s] = 1;
+      sanitizedReasons[s] = reasons[s] || "";
+    });
+
+    onComplete(scores, { reasons: sanitizedReasons });
+    localStorage.removeItem(getProgressKey(userId, "disliked_subjects"));
+  };
+
+  return (
+    <div className="space-y-8">
+      {showResumeModal && (
+        <ResumeTestModal
+          testType="disliked_subjects"
+          onResume={handleResume}
+          onStartFresh={handleStartFresh}
+          onCancel={onCancel}
+        />
+      )}
+      <div className="text-center space-y-2">
+        <h3 className="text-2xl font-black text-slate-900">
+          Mata Pelajaran yang Tidak Disukai
+        </h3>
+        <p className="text-slate-500 text-sm">
+          Pelajaran apa yang tidak Anda sukai? Pilih mata pelajaran dan sebutkan
+          alasannya.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Left Column: Subjects */}
+        <div className="space-y-4">
+          <h4 className="text-xs font-black text-rose-600 uppercase tracking-widest border-b border-rose-100 pb-2">
+            Mata Pelajaran
+          </h4>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {subjects.map((subject) => (
+              <label
+                key={subject.id}
+                className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  selectedSubjects.includes(subject.id)
+                    ? "border-rose-500 bg-rose-50 text-rose-700"
+                    : "border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="hidden"
+                  checked={selectedSubjects.includes(subject.id)}
+                  onChange={() => toggleSubject(subject.id)}
+                />
+                <div
+                  className={`w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center transition-all ${
+                    selectedSubjects.includes(subject.id)
+                      ? "bg-rose-500 border-rose-500"
+                      : "bg-white border-slate-300"
+                  }`}
+                >
+                  {selectedSubjects.includes(subject.id) && (
+                    <Check className="w-3.5 h-3.5 text-white" />
+                  )}
+                </div>
+                <span className="text-sm font-bold">{subject.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Right Column: Reasons */}
+        <div className="space-y-4">
+          <h4 className="text-xs font-black text-rose-600 uppercase tracking-widest border-b border-rose-100 pb-2">
+            Alasan
+          </h4>
+          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {selectedSubjects.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
+                <Info className="w-8 h-8 mb-2 opacity-20" />
+                <p className="text-xs font-medium text-center">
+                  Pilih mata pelajaran di sebelah kiri untuk memberikan alasan.
+                </p>
+              </div>
+            ) : (
+              selectedSubjects.map((id) => {
+                const subject = subjects.find((s) => s.id === id);
+                return (
+                  <div
+                    key={id}
+                    className="space-y-2 animate-in fade-in slide-in-from-right-4 duration-300"
+                  >
+                    <label className="text-[10px] font-black text-slate-500 uppercase">
+                      {subject?.name}
+                    </label>
+                    <textarea
+                      value={reasons[id] || ""}
+                      onChange={(e) => handleReasonChange(id, e.target.value)}
+                      placeholder={`Mengapa Anda tidak menyukai ${subject?.name}?`}
+                      className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm min-h-[80px] bg-white shadow-sm"
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-6 border-t border-slate-100">
+        <button
+          onClick={handleSubmit}
+          className="w-full bg-rose-600 text-white py-4 rounded-2xl font-black hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 flex items-center justify-center gap-2"
+        >
+          SELESAI & SIMPAN HASIL <ArrowRight className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const LikedTeachersTest = ({
+  onComplete,
+  userId,
+  onCancel,
+}: {
+  onComplete: (scores: Record<string, number>, extraData?: any) => void;
+  userId: string;
+  onCancel: () => void;
+}) => {
+  const subjects = [
+    { id: "agama", name: "Pendidikan Agama dan Budi Pekerti" },
+    { id: "ppkn", name: "Pendidikan Pancasila dan Kewarganegaraan" },
+    { id: "b_indo", name: "Bahasa Indonesia" },
+    { id: "mtk", name: "Matematika" },
+    { id: "ipa", name: "Ilmu Pengetahuan Alam (IPA)" },
+    { id: "ips", name: "Ilmu Pengetahuan Sosial (IPS)" },
+    { id: "b_ing", name: "Bahasa Inggris" },
+    { id: "seni", name: "Seni Budaya" },
+    { id: "pjok", name: "Pendidikan Jasmani, Olahraga, dan Kesehatan (PJOK)" },
+    { id: "prakarya", name: "Prakarya" },
+    { id: "informatika", name: "Informatika" },
+    { id: "b_daerah", name: "Bahasa Daerah" },
+    { id: "bk", name: "Bimbingan Konseling (BK)" },
+  ];
+
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [pendingProgress, setPendingProgress] = useState<any>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(
+      getProgressKey(userId, "liked_teachers"),
+    );
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.selectedSubjects?.length > 0) {
+          setPendingProgress(parsed);
+          setShowResumeModal(true);
+        }
+      } catch (e) {
+        console.error("Error parsing saved progress:", e);
+      }
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (selectedSubjects.length > 0) {
+      localStorage.setItem(
+        getProgressKey(userId, "liked_teachers"),
+        JSON.stringify({
+          selectedSubjects,
+          reasons,
+          timestamp: Date.now(),
+        }),
+      );
+    }
+  }, [selectedSubjects, reasons, userId]);
+
+  const handleResume = () => {
+    if (pendingProgress) {
+      setSelectedSubjects(pendingProgress.selectedSubjects || []);
+      setReasons(pendingProgress.reasons || {});
+    }
+    setShowResumeModal(false);
+  };
+
+  const handleStartFresh = () => {
+    localStorage.removeItem(getProgressKey(userId, "liked_teachers"));
+    setSelectedSubjects([]);
+    setReasons({});
+    setShowResumeModal(false);
+  };
+
+  const toggleSubject = (id: string) => {
+    setSelectedSubjects((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
+  };
+
+  const handleReasonChange = (id: string, text: string) => {
+    setReasons((prev) => ({ ...prev, [id]: text }));
+  };
+
+  const handleSubmit = () => {
+    if (selectedSubjects.length === 0) {
+      alert("Silakan pilih minimal satu mata pelajaran.");
+      return;
+    }
+
+    const scores: Record<string, number> = {};
+    const sanitizedReasons: Record<string, string> = {};
+    selectedSubjects.forEach((s) => {
+      scores[s] = 1;
+      sanitizedReasons[s] = reasons[s] || "";
+    });
+
+    onComplete(scores, { reasons: sanitizedReasons });
+    localStorage.removeItem(getProgressKey(userId, "liked_teachers"));
+  };
+
+  return (
+    <div className="space-y-8">
+      {showResumeModal && (
+        <ResumeTestModal
+          testType="liked_teachers"
+          onResume={handleResume}
+          onStartFresh={handleStartFresh}
+          onCancel={onCancel}
+        />
+      )}
+      <div className="text-center space-y-2">
+        <h3 className="text-2xl font-black text-slate-900">
+          Guru Mata Pelajaran yang Disukai
+        </h3>
+        <p className="text-slate-500 text-sm">
+          Guru mata pelajaran apa yang Anda sukai? Pilih mata pelajaran dan sebutkan
+          alasannya.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Left Column: Subjects */}
+        <div className="space-y-4">
+          <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest border-b border-indigo-100 pb-2">
+            Mata Pelajaran
+          </h4>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {subjects.map((subject) => (
+              <label
+                key={subject.id}
+                className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  selectedSubjects.includes(subject.id)
+                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                    : "border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="hidden"
+                  checked={selectedSubjects.includes(subject.id)}
+                  onChange={() => toggleSubject(subject.id)}
+                />
+                <div
+                  className={`w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center transition-all ${
+                    selectedSubjects.includes(subject.id)
+                      ? "bg-indigo-500 border-indigo-500"
+                      : "bg-white border-slate-300"
+                  }`}
+                >
+                  {selectedSubjects.includes(subject.id) && (
+                    <Check className="w-3.5 h-3.5 text-white" />
+                  )}
+                </div>
+                <span className="text-sm font-bold">{subject.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Right Column: Reasons */}
+        <div className="space-y-4">
+          <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest border-b border-indigo-100 pb-2">
+            Alasan Menyukai Guru
+          </h4>
+          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {selectedSubjects.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
+                <Info className="w-8 h-8 mb-2 opacity-20" />
+                <p className="text-xs font-medium text-center">
+                  Pilih mata pelajaran di sebelah kiri untuk memberikan alasan mengapa Anda menyukai gurunya.
+                </p>
+              </div>
+            ) : (
+              selectedSubjects.map((id) => {
+                const subject = subjects.find((s) => s.id === id);
+                return (
+                  <div
+                    key={id}
+                    className="space-y-2 animate-in fade-in slide-in-from-right-4 duration-300"
+                  >
+                    <label className="text-[10px] font-black text-slate-500 uppercase">
+                      Guru {subject?.name}
+                    </label>
+                    <textarea
+                      value={reasons[id] || ""}
+                      onChange={(e) => handleReasonChange(id, e.target.value)}
+                      placeholder={`Mengapa Anda menyukai guru ${subject?.name}?`}
+                      className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm min-h-[80px] bg-white shadow-sm"
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-6 border-t border-slate-100">
+        <button
+          onClick={handleSubmit}
+          className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+        >
+          SELESAI & SIMPAN HASIL <ArrowRight className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const DislikedTeachersTest = ({
+  onComplete,
+  userId,
+  onCancel,
+}: {
+  onComplete: (scores: Record<string, number>, extraData?: any) => void;
+  userId: string;
+  onCancel: () => void;
+}) => {
+  const subjects = [
+    { id: "agama", name: "Pendidikan Agama dan Budi Pekerti" },
+    { id: "ppkn", name: "Pendidikan Pancasila dan Kewarganegaraan" },
+    { id: "b_indo", name: "Bahasa Indonesia" },
+    { id: "mtk", name: "Matematika" },
+    { id: "ipa", name: "Ilmu Pengetahuan Alam (IPA)" },
+    { id: "ips", name: "Ilmu Pengetahuan Sosial (IPS)" },
+    { id: "b_ing", name: "Bahasa Inggris" },
+    { id: "seni", name: "Seni Budaya" },
+    { id: "pjok", name: "Pendidikan Jasmani, Olahraga, dan Kesehatan (PJOK)" },
+    { id: "prakarya", name: "Prakarya" },
+    { id: "informatika", name: "Informatika" },
+    { id: "b_daerah", name: "Bahasa Daerah" },
+    { id: "bk", name: "Bimbingan Konseling (BK)" },
+  ];
+
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [pendingProgress, setPendingProgress] = useState<any>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(
+      getProgressKey(userId, "disliked_teachers"),
+    );
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.selectedSubjects?.length > 0) {
+          setPendingProgress(parsed);
+          setShowResumeModal(true);
+        }
+      } catch (e) {
+        console.error("Error parsing saved progress:", e);
+      }
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (selectedSubjects.length > 0) {
+      localStorage.setItem(
+        getProgressKey(userId, "disliked_teachers"),
+        JSON.stringify({
+          selectedSubjects,
+          reasons,
+          timestamp: Date.now(),
+        }),
+      );
+    }
+  }, [selectedSubjects, reasons, userId]);
+
+  const handleResume = () => {
+    if (pendingProgress) {
+      setSelectedSubjects(pendingProgress.selectedSubjects || []);
+      setReasons(pendingProgress.reasons || {});
+    }
+    setShowResumeModal(false);
+  };
+
+  const handleStartFresh = () => {
+    localStorage.removeItem(getProgressKey(userId, "disliked_teachers"));
+    setSelectedSubjects([]);
+    setReasons({});
+    setShowResumeModal(false);
+  };
+
+  const toggleSubject = (id: string) => {
+    setSelectedSubjects((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
+  };
+
+  const handleReasonChange = (id: string, text: string) => {
+    setReasons((prev) => ({ ...prev, [id]: text }));
+  };
+
+  const handleSubmit = () => {
+    if (selectedSubjects.length === 0) {
+      alert("Silakan pilih minimal satu mata pelajaran.");
+      return;
+    }
+
+    const scores: Record<string, number> = {};
+    const sanitizedReasons: Record<string, string> = {};
+    selectedSubjects.forEach((s) => {
+      scores[s] = 1;
+      sanitizedReasons[s] = reasons[s] || "";
+    });
+
+    onComplete(scores, { reasons: sanitizedReasons });
+    localStorage.removeItem(getProgressKey(userId, "disliked_teachers"));
+  };
+
+  return (
+    <div className="space-y-8">
+      {showResumeModal && (
+        <ResumeTestModal
+          testType="disliked_teachers"
+          onResume={handleResume}
+          onStartFresh={handleStartFresh}
+          onCancel={onCancel}
+        />
+      )}
+      <div className="text-center space-y-2">
+        <h3 className="text-2xl font-black text-slate-900">
+          Guru Mata Pelajaran yang Tidak Disukai
+        </h3>
+        <p className="text-slate-500 text-sm">
+          Guru mata pelajaran apa yang kurang Anda sukai? Pilih mata pelajaran dan sebutkan
+          alasannya.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Left Column: Subjects */}
+        <div className="space-y-4">
+          <h4 className="text-xs font-black text-orange-600 uppercase tracking-widest border-b border-orange-100 pb-2">
+            Mata Pelajaran
+          </h4>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {subjects.map((subject) => (
+              <label
+                key={subject.id}
+                className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  selectedSubjects.includes(subject.id)
+                    ? "border-orange-500 bg-orange-50 text-orange-700"
+                    : "border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="hidden"
+                  checked={selectedSubjects.includes(subject.id)}
+                  onChange={() => toggleSubject(subject.id)}
+                />
+                <div
+                  className={`w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center transition-all ${
+                    selectedSubjects.includes(subject.id)
+                      ? "bg-orange-500 border-orange-500"
+                      : "bg-white border-slate-300"
+                  }`}
+                >
+                  {selectedSubjects.includes(subject.id) && (
+                    <Check className="w-3.5 h-3.5 text-white" />
+                  )}
+                </div>
+                <span className="text-sm font-bold">{subject.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Right Column: Reasons */}
+        <div className="space-y-4">
+          <h4 className="text-xs font-black text-orange-600 uppercase tracking-widest border-b border-orange-100 pb-2">
+            Alasan Kurang Suka
+          </h4>
+          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {selectedSubjects.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
+                <Info className="w-8 h-8 mb-2 opacity-20" />
+                <p className="text-xs font-medium text-center">
+                  Pilih mata pelajaran di sebelah kiri untuk memberikan alasan mengapa Anda kurang menyukai gurunya.
+                </p>
+              </div>
+            ) : (
+              selectedSubjects.map((id) => {
+                const subject = subjects.find((s) => s.id === id);
+                return (
+                  <div
+                    key={id}
+                    className="space-y-2 animate-in fade-in slide-in-from-right-4 duration-300"
+                  >
+                    <label className="text-[10px] font-black text-slate-500 uppercase">
+                      Guru {subject?.name}
+                    </label>
+                    <textarea
+                      value={reasons[id] || ""}
+                      onChange={(e) => handleReasonChange(id, e.target.value)}
+                      placeholder={`Mengapa Anda kurang menyukai guru ${subject?.name}?`}
+                      className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm min-h-[80px] bg-white shadow-sm"
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-6 border-t border-slate-100">
+        <button
+          onClick={handleSubmit}
+          className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black hover:bg-orange-700 transition-all shadow-lg shadow-orange-100 flex items-center justify-center gap-2"
+        >
+          SELESAI & SIMPAN HASIL <ArrowRight className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const DreamsTest = ({
+  onComplete,
+  userId,
+  onCancel,
+}: {
+  onComplete: (scores: Record<string, any>) => void;
+  userId: string;
+  onCancel: () => void;
+}) => {
+  const [nextStep, setNextStep] = useState("");
+  const [schoolInfo, setSchoolInfo] = useState("");
+  const [reason, setReason] = useState("");
+  const [aspirations, setAspirations] = useState<string[]>([""]);
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [pendingProgress, setPendingProgress] = useState<any>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(getProgressKey(userId, "dreams"));
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.nextStep || parsed.aspirations?.some((a: string) => a.trim() !== "")) {
+          setPendingProgress(parsed);
+          setShowResumeModal(true);
+        }
+      } catch (e) {
+        console.error("Error parsing saved progress:", e);
+      }
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (nextStep || schoolInfo || reason || aspirations.some(a => a.trim() !== "")) {
+      localStorage.setItem(
+        getProgressKey(userId, "dreams"),
+        JSON.stringify({
+          nextStep,
+          schoolInfo,
+          reason,
+          aspirations,
+          timestamp: Date.now(),
+        }),
+      );
+    }
+  }, [nextStep, schoolInfo, reason, aspirations, userId]);
+
+  const handleResume = () => {
+    if (pendingProgress) {
+      setNextStep(pendingProgress.nextStep || "");
+      setSchoolInfo(pendingProgress.schoolInfo || "");
+      setReason(pendingProgress.reason || "");
+      setAspirations(pendingProgress.aspirations || [""]);
+    }
+    setShowResumeModal(false);
+  };
+
+  const handleStartFresh = () => {
+    localStorage.removeItem(getProgressKey(userId, "dreams"));
+    setNextStep("");
+    setSchoolInfo("");
+    setReason("");
+    setAspirations([""]);
+    setShowResumeModal(false);
+  };
+
+  const handleAddAspiration = () => {
+    setAspirations([...aspirations, ""]);
+  };
+
+  const handleRemoveAspiration = (index: number) => {
+    setAspirations(aspirations.filter((_, i) => i !== index));
+  };
+
+  const handleChangeAspiration = (index: number, value: string) => {
+    const newAspirations = [...aspirations];
+    newAspirations[index] = value;
+    setAspirations(newAspirations);
+  };
+
+  const handleSubmit = () => {
+    if (!nextStep || !schoolInfo || !reason) {
+      alert("Mohon lengkapi bagian Rencana Sekolah Lanjut");
+      return;
+    }
+    const filteredAspirations = aspirations.filter((a) => a.trim() !== "");
+    if (filteredAspirations.length === 0) {
+      alert("Mohon sebutkan minimal satu cita-cita");
+      return;
+    }
+
+    onComplete({
+      nextStep,
+      schoolInfo,
+      reason,
+      aspirations: filteredAspirations,
+    });
+    localStorage.removeItem(getProgressKey(userId, "dreams"));
+  };
+
+  const getDetailLabel = () => {
+    switch (nextStep) {
+      case "study":
+        return "Nama Sekolah / Universitas";
+      case "course":
+        return "Nama Kursus";
+      case "stop":
+        return "Alasan Utama Tidak Melanjutkan";
+      case "work":
+        return "Bekerja di Mana";
+      case "other":
+        return "Beri Penjelasan";
+      default:
+        return "Detail";
+    }
+  };
+
+  return (
+    <div className="space-y-8 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+      {showResumeModal && (
+        <ResumeTestModal
+          testType="dreams"
+          onResume={handleResume}
+          onStartFresh={handleStartFresh}
+          onCancel={onCancel}
+        />
+      )}
+      <div>
+        <h3 className="text-lg font-black text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+          <School className="w-5 h-5 text-emerald-600" />
+          1. Sekolah Lanjut
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">
+              Setelah selesai sekolah, saya akan :
+            </label>
+            <div className="grid grid-cols-1 gap-2">
+              {[
+                { id: "study", label: "Melanjutkan Belajar" },
+                { id: "course", label: "Kursus" },
+                { id: "stop", label: "Tidak Melanjutkan" },
+                { id: "work", label: "Bekerja" },
+                { id: "other", label: "Lainnya" },
+              ].map((opt) => (
+                <label
+                  key={opt.id}
+                  className={`flex items-center p-3 rounded-xl border-2 transition-all cursor-pointer ${nextStep === opt.id ? "border-emerald-500 bg-emerald-50" : "border-slate-100 hover:border-slate-200"}`}
+                >
+                  <input
+                    type="radio"
+                    name="nextStep"
+                    value={opt.id}
+                    checked={nextStep === opt.id}
+                    onChange={(e) => setNextStep(e.target.value)}
+                    className="hidden"
+                  />
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 mr-3 flex items-center justify-center ${nextStep === opt.id ? "border-emerald-500" : "border-slate-300"}`}
+                  >
+                    {nextStep === opt.id && (
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    )}
+                  </div>
+                  <span className="text-sm font-medium text-slate-700">
+                    {opt.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {nextStep && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="space-y-2">
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider">
+                  {getDetailLabel()}
+                </label>
+                <input
+                  type="text"
+                  value={schoolInfo}
+                  onChange={(e) => setSchoolInfo(e.target.value)}
+                  placeholder="Isi di sini..."
+                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-emerald-500 focus:ring-0 outline-none transition-all text-sm shadow-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider">
+                  Alasan
+                </label>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Berikan alasanmu..."
+                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-emerald-500 focus:ring-0 outline-none transition-all text-sm shadow-sm"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-lg font-black text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+          <Rocket className="w-5 h-5 text-emerald-600" />
+          2. Cita - Cita
+        </h3>
+        <p className="text-sm text-slate-500 mb-4 font-medium italic">
+          Sebutkan apa Cita - Citamu! (Boleh lebih dari satu)
+        </p>
+        <div className="space-y-3">
+          {aspirations.map((aspiration, index) => (
+            <div key={index} className="flex gap-2 group">
+              <input
+                type="text"
+                value={aspiration}
+                onChange={(e) => handleChangeAspiration(index, e.target.value)}
+                placeholder={`Cita-cita ke-${index + 1}`}
+                className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-emerald-500 focus:ring-0 outline-none transition-all text-sm shadow-sm"
+              />
+              {aspirations.length > 1 && (
+                <button
+                  onClick={() => handleRemoveAspiration(index)}
+                  className="p-3 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-100"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={handleAddAspiration}
+            className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 text-sm font-black hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> TAMBAH CITA-CITA LAINNYA
+          </button>
+        </div>
+      </div>
+
+      <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3">
+        <button
+          onClick={onCancel}
+          className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-4 rounded-2xl transition-all active:scale-[0.98]"
+        >
+          BATAL
+        </button>
+        <button
+          onClick={handleSubmit}
+          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-100 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+        >
+          <Save className="w-5 h-5" /> SIMPAN HASIL TES
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const WarteggTest = ({
   onComplete,
   userId,
@@ -2548,7 +3614,11 @@ const TestForm = ({
 
   useEffect(() => {
     // Check for standard test progress
-    if (type !== "wartegg" && type !== "subject_interest") {
+    if (
+      type !== "wartegg" &&
+      type !== "subject_interest" &&
+      type !== "disliked_subjects"
+    ) {
       const saved = localStorage.getItem(getProgressKey(userId, type));
       if (saved) {
         try {
@@ -2568,7 +3638,11 @@ const TestForm = ({
   }, [userId, type]);
 
   useEffect(() => {
-    if (type !== "wartegg" && type !== "subject_interest") {
+    if (
+      type !== "wartegg" &&
+      type !== "subject_interest" &&
+      type !== "disliked_subjects"
+    ) {
       if (currentIdx > 0 || Object.keys(answers).length > 0) {
         localStorage.setItem(
           getProgressKey(userId, type),
@@ -2750,6 +3824,30 @@ const TestForm = ({
               userId={userId}
               onCancel={onCancel}
             />
+          ) : type === "disliked_subjects" ? (
+            <DislikedSubjectsTest
+              onComplete={onComplete}
+              userId={userId}
+              onCancel={onCancel}
+            />
+          ) : type === "dreams" ? (
+            <DreamsTest
+              onComplete={onComplete}
+              userId={userId}
+              onCancel={onCancel}
+            />
+          ) : type === "liked_teachers" ? (
+            <LikedTeachersTest
+              onComplete={onComplete}
+              userId={userId}
+              onCancel={onCancel}
+            />
+          ) : type === "disliked_teachers" ? (
+            <DislikedTeachersTest
+              onComplete={onComplete}
+              userId={userId}
+              onCancel={onCancel}
+            />
           ) : (
             <>
               <span
@@ -2813,12 +3911,14 @@ const ResultView = ({
   showToast,
   teacherSettings,
   results,
+  customTests = [],
 }: {
   result: TestResult;
   onBack: () => void;
   showToast: (m: string, t?: "success" | "error" | "info") => void;
   teacherSettings: TeacherSettings | null;
   results: TestResult[];
+  customTests?: any[];
 }) => {
   const [aiExplanation, setAiExplanation] = useState(
     result.aiExplanation || "",
@@ -2907,6 +4007,12 @@ const ResultView = ({
       const rawScore = result.scores["cfit"] || 0;
       const iq = Math.round((rawScore / 40) * 70 + 70);
       summaryText = `Hasil Tes CFIT Anda menunjukkan estimasi IQ sebesar <strong>${iq}</strong>.`;
+    } else if (result.testType === "dreams") {
+      summaryText = `Rencana masa depan Anda telah tersimpan. Tetaplah fokus pada tujuan Anda.`;
+    } else if (result.testType === "liked_teachers") {
+      summaryText = `Anda telah mengidentifikasi guru-guru yang Anda sukai. Hubungan positif ini sangat membantu proses belajar Anda.`;
+    } else if (result.testType === "disliked_teachers") {
+      summaryText = `Beradaptasi dengan berbagai tipe pengajar adalah tantangan yang akan mendewasakan sikap belajar Anda.`;
     } else {
       const top3 = sortedData
         .slice(0, 3)
@@ -3076,6 +4182,52 @@ const ResultView = ({
       );
     }
 
+    if (result.testType === "dreams") {
+      const nextStep = (result.scores as any).nextStep || "";
+      const schoolInfo = (result.scores as any).schoolInfo || "";
+      const reason = (result.scores as any).reason || "";
+      const aspirations = (result.scores as any).aspirations || [];
+
+      const map: Record<string, string> = {
+        study: "Melanjutkan Belajar",
+        course: "Kursus",
+        stop: "Tidak Melanjutkan",
+        work: "Bekerja",
+        other: "Lainnya",
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Rencana</span>
+              <p className="text-sm font-bold text-slate-900">{map[nextStep] || nextStep}</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Detail</span>
+              <p className="text-sm font-bold text-slate-900">{schoolInfo}</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Alasan</span>
+              <p className="text-sm font-bold text-slate-900">{reason}</p>
+            </div>
+          </div>
+          <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-100">
+            <h4 className="text-sm font-black text-emerald-800 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Rocket className="w-4 h-4" /> Daftar Cita-Cita
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {Array.isArray(aspirations) && aspirations.map((a: string, i: number) => (
+                <span key={i} className="px-4 py-2 rounded-xl bg-white text-emerald-700 font-bold text-sm shadow-sm border border-emerald-200">
+                  {a}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (result.testType === "wartegg") {
       const drawings = result.extraData?.drawings || {};
       const titles = result.extraData?.titles || {};
@@ -3122,30 +4274,27 @@ const ResultView = ({
       );
     }
 
-    if (result.testType === "subject_interest") {
+    if (result.testType === "subject_interest" || result.testType === "disliked_subjects" || result.testType === "liked_teachers" || result.testType === "disliked_teachers") {
+      const isLiked = result.testType === "subject_interest" || result.testType === "liked_teachers";
+      const isTeacher = result.testType === "liked_teachers" || result.testType === "disliked_teachers";
+      
       return (
         <div className="space-y-4">
           <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">
-            Mata Pelajaran yang Disukai:
+            {isTeacher 
+              ? (isLiked ? "Guru yang Disukai:" : "Guru yang Kurang Disukai:")
+              : (isLiked ? "Mata Pelajaran yang Disukai:" : "Mata Pelajaran yang Kurang Disukai:")
+            }
           </h4>
           <div className="grid grid-cols-1 gap-3">
             {Object.entries(result.scores)
               .filter(([_, v]) => v > 0)
               .map(([id, _], index) => {
                 const map: Record<string, string> = {
-                  agama: "Pendidikan Agama",
-                  ppkn: "PPKn",
-                  b_indo: "Bahasa Indonesia",
-                  mtk: "Matematika",
-                  ipa: "IPA",
-                  ips: "IPS",
-                  b_ing: "Bahasa Inggris",
-                  seni: "Seni Budaya",
-                  pjok: "PJOK",
-                  prakarya: "Prakarya",
-                  informatika: "Informatika",
-                  b_daerah: "Bahasa Daerah",
-                  bk: "BK",
+                  agama: "Pendidikan Agama", ppkn: "PPKn", b_indo: "Bahasa Indonesia",
+                  mtk: "Matematika", ipa: "IPA", ips: "IPS", b_ing: "Bahasa Inggris",
+                  seni: "Seni Budaya", pjok: "PJOK", prakarya: "Prakarya",
+                  informatika: "Informatika", b_daerah: "Bahasa Daerah", bk: "BK"
                 };
                 return (
                   <motion.div
@@ -3153,14 +4302,20 @@ const ResultView = ({
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:shadow-md transition-all group"
+                    className={cn(
+                      "p-4 bg-white rounded-2xl border border-slate-200 shadow-sm transition-all group",
+                      isLiked ? "hover:border-emerald-200" : "hover:border-rose-200"
+                    )}
                   >
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs ring-4 ring-emerald-50">
+                      <div className={cn(
+                        "w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ring-4",
+                        isLiked ? "bg-emerald-100 text-emerald-600 ring-emerald-50" : "bg-rose-100 text-rose-600 ring-rose-50"
+                      )}>
                         {index + 1}
                       </div>
                       <span className="font-black text-slate-800 text-sm uppercase tracking-tight">
-                        {map[id] || id}
+                        {isTeacher ? "Guru " : ""}{map[id] || id}
                       </span>
                     </div>
                     {result.extraData?.reasons?.[id] && (
@@ -3319,15 +4474,39 @@ const ResultView = ({
   };
 
   const handleShare = async () => {
-    const testTitle = TESTS[result.testType].title;
-    const summary = `Hasil ${testTitle} - ${result.studentName} (${result.studentClass || "Umum"})\n\n${result.analysis.substring(0, 200)}...\n\nLihat selengkapnya di PsikoTest.`;
+    const testTitle = TESTS[result.testType as TestType]?.title || customTests?.find(ct => ct.id === result.testType)?.title || result.testType;
+    
+    // Create a detailed summary text
+    let topTraits = "";
+    if (result.testType === "multiple_intelligences") {
+      const sorted = Object.entries(result.scores)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .slice(0, 3)
+        .map(([k]) => k.replace(/_/g, " ").toUpperCase());
+      topTraits = `Kecerdasan Dominan: ${sorted.join(", ")}`;
+    } else if (result.testType === "learning_style") {
+      const sorted = Object.entries(result.scores)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .map(([k]) => k.toUpperCase());
+      topTraits = `Gaya Belajar Dominan: ${sorted[0] || ""}`;
+    } else if (result.testType === "personality") {
+      const top = Object.entries(result.scores).reduce((a, b) => (b[1] as number) > (a[1] as number) ? b : a);
+      topTraits = `Tipe Kepribadian: ${top[0].toUpperCase()}`;
+    }
+
+    const summary = `📊 *Hasil Tes Psikologi: ${testTitle}*\n` +
+      `👤 Nama: ${result.studentName}\n` +
+      `🏫 Kelas/Jenjang: ${result.studentClass || "Umum"}\n` +
+      (topTraits ? `\n✨ ${topTraits}\n` : "") +
+      `\n📝 Ringkasan Analisis:\n${result.analysis.substring(0, 300)}...\n\n` +
+      `Cetak/Lihat Laporan Lengkap melalui aplikasi PsikoTest.`;
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Hasil ${testTitle}`,
+          title: `Hasil ${testTitle} - ${result.studentName}`,
           text: summary,
-          url: window.location.href,
+          url: "https://psikotest-app.dutatama.com" // Provide a clean URL or leave empty, window.location.href works if testing in an actual domain
         });
       } catch (err) {
         console.error("Error sharing:", err);
@@ -3335,8 +4514,9 @@ const ResultView = ({
     } else {
       try {
         await navigator.clipboard.writeText(summary);
-        showToast("Ringkasan hasil telah disalin ke papan klip!", "success");
+        showToast("Hasil tes telah disalin ke papan klip untuk dibagikan!", "success");
       } catch (err) {
+        showToast("Gagal menyalin hasil: " + err, "error");
         console.error("Error copying to clipboard:", err);
       }
     }
@@ -3816,7 +4996,14 @@ Gunakan bahasa Indonesia yang ramah, profesional, memotivasi, dan format Markdow
               />
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => handleDownloadPDF(result, teacherSettings)}
+                  onClick={handleShare}
+                  className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-200 active:scale-95"
+                >
+                  <Share2 className="w-4 h-4" />
+                  BAGIKAN HASIL
+                </button>
+                <button
+                  onClick={() => handleDownloadPDF(result, teacherSettings, customTests)}
                   className="px-6 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2 shadow-xl shadow-slate-200 active:scale-95"
                 >
                   <Download className="w-4 h-4" />
@@ -3862,6 +5049,7 @@ Gunakan bahasa Indonesia yang ramah, profesional, memotivasi, dan format Markdow
                         result,
                         results,
                         teacherSettings,
+                        customTests
                       )
                     }
                     className="p-3 bg-white text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95"
@@ -4492,12 +5680,14 @@ const GuestRecap = ({
   classes,
   onEdit,
   onDelete,
+  customTests = [],
 }: {
   results: TestResult[];
   teacherSettings: TeacherSettings | null;
   classes: ClassInfo[];
   onEdit?: (name: string, results: TestResult[]) => void;
   onDelete?: (name: string, results: TestResult[]) => void;
+  customTests?: any[];
 }) => {
   const [filterType, setFilterType] = useState<string>("all");
   const registeredClassNames = classes.map((c) => c.name);
@@ -4574,7 +5764,7 @@ const GuestRecap = ({
       const testSummary = filteredTests
         .map(
           (t) =>
-            `${TESTS[t.testType]?.title || t.testType}: ${getShortResult(t.testType, t.scores)}`,
+            `${TESTS[t.testType as TestType]?.title || customTests.find(ct => ct.id === t.testType)?.title || t.testType}: ${getShortResult(t.testType, t.scores)}`,
         )
         .join("\n");
       return [
@@ -4820,6 +6010,7 @@ const TestRecap = ({
   teacherSettings,
   onEdit,
   onDelete,
+  customTests = [],
 }: {
   results: TestResult[];
   classes: ClassInfo[];
@@ -4827,6 +6018,7 @@ const TestRecap = ({
   teacherSettings: TeacherSettings | null;
   onEdit?: (student: StudentData) => void;
   onDelete?: (student: StudentData) => void;
+  customTests?: any[];
 }) => {
   const [selectedClass, setSelectedClass] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
@@ -4940,7 +6132,7 @@ const TestRecap = ({
       const testSummary = filteredTests
         .map(
           (t) =>
-            `${TESTS[t.testType]?.title || t.testType}: ${getShortResult(t.testType, t.scores)}`,
+            `${TESTS[t.testType as TestType]?.title || customTests.find(ct => ct.id === t.testType)?.title || t.testType}: ${getShortResult(t.testType, t.scores)}`,
         )
         .join("\n");
       return [
@@ -5025,6 +6217,13 @@ const TestRecap = ({
         const test = filteredTests.find((t) => t.testType === type);
         row[TESTS[type as TestType].title] = test
           ? getShortResult(type as TestType, test.scores)
+          : "-";
+      });
+      // Add custom tests
+      customTests.forEach((ct) => {
+        const test = filteredTests.find((t) => t.testType === ct.id);
+        row[ct.title || ct.id] = test
+          ? getShortResult(ct.id as TestType, test.scores)
           : "-";
       });
 
@@ -5833,6 +7032,7 @@ const LaporanIndividuSiswa = ({
   classes,
   students,
   teacherSettings,
+  customTests = [],
   onEdit,
   onDelete,
 }: {
@@ -5840,6 +7040,7 @@ const LaporanIndividuSiswa = ({
   classes: ClassInfo[];
   students: StudentData[];
   teacherSettings: TeacherSettings | null;
+  customTests?: any[];
   onEdit?: (student: StudentData) => void;
   onDelete?: (student: StudentData) => void;
 }) => {
@@ -5983,6 +7184,7 @@ const LaporanIndividuSiswa = ({
                               s,
                               results,
                               teacherSettings,
+                              customTests
                             )
                           }
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-100"
@@ -6045,6 +7247,7 @@ const LaporanIndividuUmum = ({
   selectedGuestIds,
   setSelectedGuestIds,
   setConfirmDelete,
+  customTests = [],
 }: {
   results: TestResult[];
   classes: ClassInfo[];
@@ -6054,6 +7257,7 @@ const LaporanIndividuUmum = ({
   selectedGuestIds: string[];
   setSelectedGuestIds: (ids: string[]) => void;
   setConfirmDelete: (data: any) => void;
+  customTests?: any[];
 }) => {
   const [search, setSearch] = useState("");
   const [selectedSchool, setSelectedSchool] = useState<string>("all");
@@ -6303,6 +7507,7 @@ const LaporanIndividuUmum = ({
                               g,
                               results,
                               teacherSettings,
+                              customTests
                             )
                           }
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-100"
@@ -6356,6 +7561,7 @@ const HasilTesSummary = ({
   teacherSettings,
   onEdit,
   onDelete,
+  customTests = [],
 }: {
   results: TestResult[];
   classes: ClassInfo[];
@@ -6363,6 +7569,7 @@ const HasilTesSummary = ({
   teacherSettings: TeacherSettings | null;
   onEdit?: (student: StudentData) => void;
   onDelete?: (student: StudentData) => void;
+  customTests?: any[];
 }) => {
   const [selectedClass, setSelectedClass] = useState<string>("all");
   const [selectedSchool, setSelectedSchool] = useState<string>("all");
@@ -6530,7 +7737,11 @@ const HasilTesSummary = ({
         s.latestTests["cfit"] || "-",
         s.latestTests["wartegg"] || "-",
         s.latestTests["subject_interest"] || "-",
+        s.latestTests["disliked_subjects"] || "-",
+        s.latestTests["liked_teachers"] || "-",
+        s.latestTests["disliked_teachers"] || "-",
         s.latestTests["school_career"] || "-",
+        s.latestTests["dreams"] || "-",
       ];
     });
 
@@ -6563,7 +7774,7 @@ const HasilTesSummary = ({
             rowSpan: 2,
             styles: { halign: "center", valign: "middle" },
           },
-          { content: "JENIS TES", colSpan: 10, styles: { halign: "center" } },
+          { content: "JENIS TES", colSpan: 14, styles: { halign: "center" } },
         ],
         [
           { content: "GAYA BELAJAR", styles: { halign: "center" } },
@@ -6575,7 +7786,11 @@ const HasilTesSummary = ({
           { content: "CFIT", styles: { halign: "center" } },
           { content: "WARTEGG", styles: { halign: "center" } },
           { content: "MINAT MAPEL", styles: { halign: "center" } },
+          { content: "MAPEL TIDAK SUKA", styles: { halign: "center" } },
+          { content: "GURU DISUKAI", styles: { halign: "center" } },
+          { content: "GURU TIDAK SUKA", styles: { halign: "center" } },
           { content: "PERENCANAAN KARIER", styles: { halign: "center" } },
+          { content: "CITA-CITA", styles: { halign: "center" } },
         ],
       ],
       body: tableData,
@@ -6991,7 +8206,7 @@ const HasilTesSummary = ({
                     </div>
                   </th>
                   <th
-                    colSpan={10}
+                    colSpan={14}
                     className="px-4 py-2 border-b border-slate-200 text-center"
                   >
                     Jenis Tes
@@ -7032,7 +8247,19 @@ const HasilTesSummary = ({
                     Minat Mapel
                   </th>
                   <th className="px-4 py-2 border-r border-slate-200 text-center">
+                    Mapel Tidak Suka
+                  </th>
+                  <th className="px-4 py-2 border-r border-slate-200 text-center">
                     Per. Karier
+                  </th>
+                  <th className="px-4 py-2 border-r border-slate-200 text-center">
+                    Cita-Cita
+                  </th>
+                  <th className="px-4 py-2 border-r border-slate-200 text-center text-emerald-600 bg-emerald-50">
+                    Guru Mapel Disukai
+                  </th>
+                  <th className="px-4 py-2 border-r border-slate-200 text-center text-red-600 bg-red-50">
+                    Guru Mapel Tidak Disukai
                   </th>
                 </tr>
               </thead>
@@ -7094,7 +8321,19 @@ const HasilTesSummary = ({
                         {s.latestTests["subject_interest"]}
                       </td>
                       <td className="px-1.5 py-1.5 text-[9px] text-slate-600 text-center border-r border-slate-100 font-bold whitespace-nowrap">
+                        {s.latestTests["disliked_subjects"]}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-[9px] text-slate-600 text-center border-r border-slate-100 font-bold whitespace-nowrap">
                         {s.latestTests["school_career"]}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-[9px] text-slate-600 text-center border-r border-slate-100 font-bold whitespace-nowrap">
+                        {s.latestTests["dreams"]}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-[9px] text-emerald-700 bg-emerald-50/30 text-center border-r border-slate-100 font-bold whitespace-nowrap">
+                        {s.latestTests["liked_teachers"]}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-[9px] text-red-700 bg-red-50/30 text-center border-r border-slate-100 font-bold whitespace-nowrap">
+                        {s.latestTests["disliked_teachers"]}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -7104,6 +8343,7 @@ const HasilTesSummary = ({
                                 s,
                                 results,
                                 teacherSettings,
+                                customTests
                               )
                             }
                             className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -7132,7 +8372,7 @@ const HasilTesSummary = ({
                 {studentResults.length === 0 && (
                   <tr>
                     <td
-                      colSpan={12}
+                      colSpan={20}
                       className="p-12 text-center text-slate-400 font-bold italic"
                     >
                       Tidak ada data siswa ditemukan.
@@ -7164,6 +8404,7 @@ const HasilTesTamu = ({
   setConfirmDelete,
   selectedGuestIds,
   setSelectedGuestIds,
+  customTests = [],
 }: {
   results: TestResult[];
   classes: ClassInfo[];
@@ -7173,6 +8414,7 @@ const HasilTesTamu = ({
   setConfirmDelete: (data: any) => void;
   selectedGuestIds: string[];
   setSelectedGuestIds: (ids: string[]) => void;
+  customTests?: any[];
 }) => {
   const [search, setSearch] = useState("");
   const [filterSchool, setFilterSchool] = useState("all");
@@ -7340,7 +8582,11 @@ const HasilTesTamu = ({
         g.latestTests["cfit"] || "-",
         g.latestTests["wartegg"] || "-",
         g.latestTests["subject_interest"] || "-",
+        g.latestTests["disliked_subjects"] || "-",
+        g.latestTests["liked_teachers"] || "-",
+        g.latestTests["disliked_teachers"] || "-",
         g.latestTests["school_career"] || "-",
+        g.latestTests["dreams"] || "-",
       ];
     });
 
@@ -7373,7 +8619,7 @@ const HasilTesTamu = ({
             rowSpan: 2,
             styles: { halign: "center", valign: "middle" },
           },
-          { content: "JENIS TES", colSpan: 10, styles: { halign: "center" } },
+          { content: "JENIS TES", colSpan: 14, styles: { halign: "center" } },
         ],
         [
           { content: "GAYA BELAJAR", styles: { halign: "center" } },
@@ -7385,7 +8631,11 @@ const HasilTesTamu = ({
           { content: "CFIT", styles: { halign: "center" } },
           { content: "WARTEGG", styles: { halign: "center" } },
           { content: "MINAT MAPEL", styles: { halign: "center" } },
+          { content: "MAPEL TIDAK SUKA", styles: { halign: "center" } },
+          { content: "GURU DISUKAI", styles: { halign: "center" } },
+          { content: "GURU TIDAK SUKA", styles: { halign: "center" } },
           { content: "PERENCANAAN KARIER", styles: { halign: "center" } },
+          { content: "CITA-CITA", styles: { halign: "center" } },
         ],
       ],
       body: tableData,
@@ -7637,7 +8887,7 @@ const HasilTesTamu = ({
                     KELAS/ UMUR
                   </th>
                   <th
-                    colSpan={10}
+                    colSpan={14}
                     className="px-4 py-2 border-b border-slate-200 text-center uppercase font-black text-[10px]"
                   >
                     JENIS TES
@@ -7678,7 +8928,19 @@ const HasilTesTamu = ({
                     Minat Mapel
                   </th>
                   <th className="px-4 py-2 border-r border-slate-200 text-center">
+                    Mapel Tidak Suka
+                  </th>
+                  <th className="px-4 py-2 border-r border-slate-200 text-center">
                     Per. Karier
+                  </th>
+                  <th className="px-4 py-2 border-r border-slate-200 text-center">
+                    Cita-Cita
+                  </th>
+                  <th className="px-4 py-2 border-r border-slate-200 text-center text-indigo-600 bg-indigo-50/50">
+                    Guru Mapel Disukai
+                  </th>
+                  <th className="px-4 py-2 border-r border-slate-200 text-center text-rose-600 bg-rose-50/50">
+                    Guru Mapel Tidak Disukai
                   </th>
                 </tr>
               </thead>
@@ -7807,9 +9069,45 @@ const HasilTesTamu = ({
                         )}
                       </td>
                       <td className="px-1.5 py-1.5 text-center border-r border-slate-100">
+                        {g.latestTests["disliked_subjects"] !== "-" ? (
+                          <div className="text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 whitespace-nowrap">
+                            {g.latestTests["disliked_subjects"]}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-center border-r border-slate-100">
                         {g.latestTests["school_career"] !== "-" ? (
                           <div className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 whitespace-nowrap">
                             {g.latestTests["school_career"]}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-center border-r border-slate-100">
+                        {g.latestTests["dreams"] !== "-" ? (
+                          <div className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 whitespace-nowrap">
+                            {g.latestTests["dreams"]}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-center border-r border-slate-100 bg-indigo-50/20">
+                        {g.latestTests["liked_teachers"] !== "-" ? (
+                          <div className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 whitespace-nowrap">
+                            {g.latestTests["liked_teachers"]}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-center border-r border-slate-100 bg-rose-50/20">
+                        {g.latestTests["disliked_teachers"] !== "-" ? (
+                          <div className="text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 whitespace-nowrap">
+                            {g.latestTests["disliked_teachers"]}
                           </div>
                         ) : (
                           <span className="text-slate-400">-</span>
@@ -7823,6 +9121,7 @@ const HasilTesTamu = ({
                                 g,
                                 results,
                                 teacherSettings,
+                                customTests
                               )
                             }
                             className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-100"
@@ -7844,7 +9143,7 @@ const HasilTesTamu = ({
                 {guestResults.length === 0 && (
                   <tr>
                     <td
-                      colSpan={16}
+                      colSpan={21}
                       className="p-12 text-center text-slate-400 font-bold italic"
                     >
                       Tidak ada data peserta umum ditemukan.
@@ -8235,6 +9534,7 @@ const AVAILABLE_TABS = [
     group: "Administrasi",
   },
   { id: "customization", name: "Kustomisasi Dashboard", group: "Administrasi" },
+  { id: "guide", name: "Panduan Pengguna", group: "Administrasi" },
 ];
 
 const AdminDashboard = ({
@@ -8250,11 +9550,13 @@ const AdminDashboard = ({
   notifications,
   counselingLogs,
   customTests,
+  appSettings,
 }: {
   results: TestResult[];
   classes: ClassInfo[];
   students: StudentData[];
   teacherSettings: TeacherSettings | null;
+  appSettings: AppSettings | null;
   user: UserProfile;
   setView: (v: any) => void;
   showToast: (m: string, t?: "success" | "error" | "info") => void;
@@ -10182,8 +11484,8 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
           </h2>
           <div className="mt-3 flex justify-start">
             <img
-              src="https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9"
-              alt="Dutatama Logo"
+              src={appSettings?.logoUrl || "https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9"}
+              alt="Logo"
               className="w-32 h-auto opacity-90 hover:opacity-100 transition-opacity cursor-pointer"
               referrerPolicy="no-referrer"
             />
@@ -10691,6 +11993,43 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                   </div>
                 </div>
               </div>
+
+                {user.role === 'admin' && (
+                <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm md:col-span-2">
+                  <div className="flex items-center justify-between mb-8">
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tight">
+                        <ImageIcon className="w-6 h-6 text-emerald-600" /> Pengaturan Logo Aplikasi
+                      </h3>
+                      <p className="text-sm text-slate-500 mt-1 font-medium">
+                        Ubah tautan logo aplikasi secara global agar tampil di semua dasbor.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-4">
+                    <input 
+                       type="url"
+                       className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-200 rounded-2xl outline-none focus:border-emerald-500 font-medium text-slate-700" 
+                       placeholder="https://example.com/logo.png"
+                       defaultValue={appSettings?.logoUrl || "https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9"}
+                       onBlur={(e) => {
+                          let newUrl = e.target.value;
+                          const driveMatch = newUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                          if (driveMatch && driveMatch[1]) {
+                             newUrl = `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
+                          }
+                          setDoc(doc(db, "app_settings", "global"), { logoUrl: newUrl || "https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9" }, { merge: true })
+                             .then(() => showToast("Logo URL diperbarui secara global", "success"))
+                             .catch(err => showToast("Gagal menyimpan logo: " + err.message, "error"));
+                       }}
+                    />
+                    <div className="bg-emerald-50 p-4 rounded-xl flex items-center justify-between">
+                       <span className="text-xs font-bold text-emerald-800">Preview Logo Aktif:</span>
+                       <img src={appSettings?.logoUrl || "https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9"} alt="Preview Logo" className="h-10 w-auto mix-blend-multiply" referrerPolicy="no-referrer" />
+                    </div>
+                  </div>
+                </div>
+                )}
 
               <div className="flex justify-center pt-6">
                 <button
@@ -13366,7 +14705,7 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                                   </button>
                                   <button
                                     onClick={() =>
-                                      handleDownloadPDF(result, teacherSettings)
+                                      handleDownloadPDF(result, teacherSettings, customTests)
                                     }
                                     className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1.5 border border-transparent hover:border-blue-100"
                                     title="Unduh Laporan"
@@ -13452,6 +14791,7 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                 students={students}
                 classes={classes}
                 teacherSettings={teacherSettings}
+                customTests={customTests}
                 onEdit={(s) => {
                   setEditingStudent(s);
                   setActiveTab("students");
@@ -13479,6 +14819,7 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                 classes={classes}
                 users={allUsers}
                 teacherSettings={teacherSettings}
+                customTests={customTests}
                 setConfirmDelete={setConfirmDelete}
                 selectedGuestIds={selectedGuestIds}
                 setSelectedGuestIds={setSelectedGuestIds}
@@ -13505,6 +14846,7 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                 students={students}
                 classes={classes}
                 teacherSettings={teacherSettings}
+                customTests={customTests}
                 onEdit={(s) => {
                   setEditingStudent(s);
                   setActiveTab("students");
@@ -13532,6 +14874,7 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                 classes={classes}
                 users={allUsers}
                 teacherSettings={teacherSettings}
+                customTests={customTests}
                 selectedGuestIds={selectedGuestIds}
                 setSelectedGuestIds={setSelectedGuestIds}
                 setConfirmDelete={setConfirmDelete}
@@ -15136,6 +16479,7 @@ export default function App() {
   }, [students]);
   const [teacherSettings, setTeacherSettings] =
     useState<TeacherSettings | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [customTests, setCustomTests] = useState<any[]>([]);
   const [activeCustomTest, setActiveCustomTest] = useState<any | null>(null);
   const [isAnalyzingTest, setIsAnalyzingTest] = useState(false);
@@ -15186,6 +16530,23 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(() => {
     return localStorage.getItem("hasSeenWelcome") !== "true";
   });
+
+  useEffect(() => {
+    const unsubAppSettings = onSnapshot(
+      doc(db, "app_settings", "global"),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setAppSettings(docSnap.data() as AppSettings);
+        } else {
+          setAppSettings({ logoUrl: "https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9" });
+        }
+      },
+      (error) => {
+        console.error("Error fetching app settings:", error);
+      }
+    );
+    return () => unsubAppSettings();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -15314,6 +16675,7 @@ export default function App() {
       }
 
       await setDoc(doc(db, "users", user.uid), payload, { merge: true });
+      showToast("Profil berhasil diperbarui!", "success");
 
       // Try to link student to their teacher
       try {
@@ -15651,8 +17013,20 @@ export default function App() {
         return "Tingkatkan kosakata dan kemampuan menulis.";
       return "Kembangkan potensi kecerdasan dominan Anda.";
     }
+    if (type === "school_major") {
+      if (latest.analysis.includes("MIPA"))
+        return "Fokuslah mengasah kemampuan matematika dan sains dasar.";
+      if (latest.analysis.includes("IPS"))
+        return "Perbanyak wawasan sosial, ekonomi, dan sejarah.";
+      if (latest.analysis.includes("Bahasa"))
+        return "Asah kemampuan komunikasi dan penguasaan bahasa asing.";
+      return "Pilih jalur pendidikan yang selaras dengan minat terkuatmu.";
+    }
     if (type === "wartegg") {
       return "Konsultasikan hasil gambar Anda dengan psikolog.";
+    }
+    if (type === "dreams") {
+      return "Wujudkan cita-citamu dengan perencanaan yang matang dan doa.";
     }
     return "Terus asah potensi diri berdasarkan hasil tes ini.";
   };
@@ -15687,6 +17061,30 @@ ${
 ${
   testType === "subject_interest" && extraData?.reasons
     ? `Minat Mata Pelajaran & Alasan:\n${Object.entries(extraData.reasons)
+        .map(([id, reason]) => {
+          const map: Record<string, string> = {
+            agama: "Pendidikan Agama",
+            ppkn: "PPKn",
+            b_indo: "Bahasa Indonesia",
+            mtk: "Matematika",
+            ipa: "IPA",
+            ips: "IPS",
+            b_ing: "Bahasa Inggris",
+            seni: "Seni Budaya",
+            pjok: "PJOK",
+            prakarya: "Prakarya",
+            informatika: "Informatika",
+            b_daerah: "Bahasa Daerah",
+            bk: "BK",
+          };
+          return `- ${map[id] || id}: ${reason}`;
+        })
+        .join("\n")}`
+    : ""
+}
+${
+  testType === "disliked_subjects" && extraData?.reasons
+    ? `Mata Pelajaran yang Tidak Disukai & Alasan:\n${Object.entries(extraData.reasons)
         .map(([id, reason]) => {
           const map: Record<string, string> = {
             agama: "Pendidikan Agama",
@@ -15838,13 +17236,24 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
 
   if (showProfileSetup) {
     return (
-      <IdentityForm
-        classes={classes}
-        students={students}
-        onSave={(data) => handleUpdateProfile(data)}
-        onLogout={handleLogout}
-        initialStep={initialIdentityStep}
-      />
+      <>
+        <IdentityForm
+          classes={classes}
+          students={students}
+          onSave={(data) => handleUpdateProfile(data)}
+          onLogout={handleLogout}
+          initialStep={initialIdentityStep}
+        />
+        <AnimatePresence>
+          {toast && (
+            <Toast
+              message={toast.message}
+              type={toast.type}
+              onClose={() => setToast(null)}
+            />
+          )}
+        </AnimatePresence>
+      </>
     );
   }
 
@@ -15972,8 +17381,8 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
             PsikoTest
           </h1>
           <img
-            src="https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9"
-            alt="Dutatama Logo"
+            src={appSettings?.logoUrl || "https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9"}
+            alt="Logo"
             className="h-6 w-auto mx-auto mb-4 opacity-90"
             referrerPolicy="no-referrer"
           />
@@ -16087,6 +17496,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
         showNotifications={showNotifications}
         setShowNotifications={setShowNotifications}
         markAsRead={markAsRead}
+        appSettings={appSettings}
         onBack={() => {
           setActiveTest(null);
           setTestResult(null);
@@ -16139,6 +17549,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                     ? allResults
                     : userResults
                 }
+                customTests={customTests}
               />
             </motion.div>
           ) : view === "admin" ? (
@@ -16152,6 +17563,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                 classes={classes}
                 students={students}
                 teacherSettings={teacherSettings}
+                appSettings={appSettings}
                 user={user}
                 setView={setView}
                 showToast={showToast}
@@ -16245,7 +17657,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                               </div>
                             </div>
                             <button
-                              onClick={() => handleDownloadPDF(res, user!)}
+                              onClick={() => handleDownloadPDF(res, user!, customTests)}
                               className="w-full py-3.5 bg-emerald-600 text-white rounded-2xl text-xs font-black hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 group-hover:-translate-y-0.5"
                             >
                               <Download className="w-4 h-4" /> UNDUH LAPORAN
@@ -16474,6 +17886,15 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
         )}
       </AnimatePresence>
       <DutaAssistant />
+      <AnimatePresence>
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

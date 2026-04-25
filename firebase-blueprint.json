@@ -21,7 +21,7 @@
       "properties": {
         "studentId": { "type": "string", "$ref": "Student" },
         "studentName": { "type": "string" },
-        "testType": { "type": "string", "enum": ["learning_style", "multiple_intelligences", "personality", "aptitude_interest", "school_major", "anxiety"] },
+        "testType": { "type": "string", "enum": ["learning_style", "multiple_intelligences", "personality", "aptitude_interest", "school_major", "anxiety", "wartegg", "school_career", "subject_interest", "cfit", "dreams", "liked_teachers", "disliked_teachers"] },
         "scores": { "type": "object" },
         "analysis": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" }

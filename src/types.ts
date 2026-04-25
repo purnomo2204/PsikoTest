@@ -13,7 +13,21 @@ export interface UserProfile {
   expiryDate?: any;
 }
 
-export type TestType = 'learning_style' | 'multiple_intelligences' | 'personality' | 'aptitude_interest' | 'school_major' | 'school_career' | 'anxiety' | 'wartegg' | 'subject_interest' | 'cfit';
+export type TestType =
+  | "learning_style"
+  | "multiple_intelligences"
+  | "personality"
+  | "aptitude_interest"
+  | "school_major"
+  | "school_career"
+  | "anxiety"
+  | "wartegg"
+  | "subject_interest"
+  | "disliked_subjects"
+  | "liked_teachers"
+  | "disliked_teachers"
+  | "dreams"
+  | "cfit";
 
 export interface TestResult {
   id?: string;
@@ -47,6 +61,10 @@ export interface StudentData {
   className: string;
   schoolName?: string;
   addedBy: string;
+}
+
+export interface AppSettings {
+  logoUrl?: string;
 }
 
 export interface TeacherSettings {
