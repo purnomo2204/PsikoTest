@@ -39,7 +39,7 @@ import {
   AppNotification,
   CounselingLog,
 } from "./types";
-import { TESTS, analyzeResult, getShortResult } from "./data/tests";
+import { TESTS, analyzeResult, getShortResult, getNumericalScore } from "./data/tests";
 import { Guide } from "./components/Guide";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -49,7 +49,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 const handleDownloadPDF = (result: TestResult, teacherSettings: any, customTests: any[] = []) => {
   const doc = new jsPDF();
   const testTitle = TESTS[result.testType as TestType]?.title || customTests.find(ct => ct.id === result.testType)?.title || result.testType;
-  const isUmum = result.studentClass.toLowerCase() === "umum";
+  const isUmum = (result.studentClass || "").toLowerCase() === "umum";
 
   let currentY = 15;
 
@@ -120,11 +120,11 @@ const handleDownloadPDF = (result: TestResult, teacherSettings: any, customTests
   currentY += 7;
   doc.text(`Kelas: ${result.studentClass || "Peserta Umum"}`, 20, currentY);
   currentY += 7;
-  doc.text(
-    `Tanggal Tes: ${new Date(result.timestamp?.seconds * 1000).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}`,
-    20,
-    currentY,
-  );
+    doc.text(
+      `Tanggal Tes: ${result.timestamp?.seconds ? new Date(result.timestamp.seconds * 1000).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : (result.timestamp ? new Date(result.timestamp).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "-")}`,
+      20,
+      currentY,
+    );
   currentY += 11;
 
   // Scores Visualization
@@ -371,10 +371,10 @@ const handleDownloadPDF = (result: TestResult, teacherSettings: any, customTests
   doc.setTextColor(71, 85, 105);
   doc.setFont("helvetica", "normal");
 
-  const cleanSummary = result.analysis.replace(/<\/?[^>]+(>|$)/g, "");
+  const cleanSummary = (result.analysis || "").replace(/<\/?[^>]+(>|$)/g, "");
   let fullAnalysisText = "";
   if (result.testType === "anxiety") {
-    fullAnalysisText = result.analysis.replace(/\*\*/g, "");
+    fullAnalysisText = (result.analysis || "").replace(/\*\*/g, "");
   } else {
     fullAnalysisText = `${cleanSummary} Penjelasan lebih lanjut tentang hasil tes bisa dibaca pada lampiran surat keterangan ini.`;
   }
@@ -427,7 +427,7 @@ const handleDownloadPDF = (result: TestResult, teacherSettings: any, customTests
   }
 
   doc.save(
-    `Hasil_${result.testType}_${result.studentName.replace(/\s+/g, "_")}.pdf`,
+    `Hasil_${result.testType}_${(result.studentName || "Siswa").replace(/\s+/g, "_")}.pdf`,
   );
 };
 
@@ -670,7 +670,7 @@ export const handleDownloadDetailedReport = (
 
       // No specific table for this test type
 
-      const cleanAnalysis = latestTest.analysis
+      const cleanAnalysis = (latestTest.analysis || "")
         .replace(/<\/?[^>]+(>|$)/g, "")
         .replace(
           /Penjelasan lebih lanjut tentang hasil tes bisa dibaca pada lampiran surat keterangan ini\./g,
@@ -846,7 +846,7 @@ export const handleDownloadDetailedReport = (
   }
 
   doc.save(
-    `Laporan_Detail_${student.name.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
+    `Laporan_Detail_${(student.name || "Siswa").replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
   );
 };
 
@@ -926,7 +926,11 @@ import {
   RefreshCcw,
   Database,
   School,
+  SortAsc,
+  SortDesc,
 } from "lucide-react";
+import { Wifi, WifiOff } from "lucide-react";
+import { CareerAdvisor } from "./components/CareerAdvisor";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "./lib/utils";
 import DutaAssistant from "./components/DutaAssistant";
@@ -1327,17 +1331,19 @@ const Navbar = ({
   setShowNotifications,
   markAsRead,
   appSettings,
+  isOnline,
 }: {
   user: UserProfile | null;
   onLogout: () => void;
   onBack?: () => void;
   setView: (v: any) => void;
-  view: "dashboard" | "admin" | "guide" | "create-test" | "history";
+  view: "dashboard" | "admin" | "guide" | "create-test" | "history" | "career-advisor";
   notifications: AppNotification[];
   showNotifications: boolean;
   setShowNotifications: (v: boolean) => void;
   markAsRead: (id: string) => void;
   appSettings: AppSettings | null;
+  isOnline: boolean;
 }) => {
   const isAdminView = view === "admin" || view === "create-test";
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -1504,6 +1510,45 @@ const Navbar = ({
                 </AnimatePresence>
               </div>
 
+              {/* Online/Offline Status Indicator */}
+              <div className="flex items-center gap-2 mr-1 shrink-0">
+                {isOnline ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-150 text-[10px] font-black tracking-wide uppercase">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <span className="hidden xs:inline">Live Sync</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 rounded-full border border-rose-150 text-[10px] font-black tracking-wide uppercase shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                    <span>Offline</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Career Advisor Button */}
+              {user && (user.role === "student" || user.role === "guest") && (
+                <button
+                  onClick={() => setView(view === "career-advisor" ? "dashboard" : "career-advisor")}
+                  className={`px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-black rounded-xl transition-all border flex items-center gap-1.5 cursor-pointer ${
+                    view === "career-advisor"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  <Briefcase className="w-3.5 h-3.5" />
+                  <span>Saran Karir</span>
+                </button>
+              )}
+
+              {/* Guide Button */}
+              <button
+                onClick={() => setView("guide")}
+                className="px-4 py-2.5 bg-slate-50 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-100 transition-all border border-slate-200 flex items-center gap-2"
+              >
+                <BookOpen className="w-4 h-4 text-slate-700" />
+                Panduan Pengguna
+              </button>
+
               {(user.role === "admin" ||
                 (user.role === "teacher" &&
                   !(
@@ -1622,7 +1667,8 @@ const TestCard = ({
     "bg-orange-500/20",
     "bg-fuchsia-500/20",
   ];
-  const color = colors[Object.keys(TESTS).indexOf(type) % colors.length];
+  const testIndex = Object.keys(TESTS).indexOf(type);
+  const color = colors[testIndex === -1 ? 0 : testIndex % colors.length];
 
   return (
     <motion.div
@@ -1663,7 +1709,13 @@ const TestCard = ({
           <div className="mt-2 p-3 bg-emerald-50/50 rounded-xl border border-emerald-100/50 group-hover:border-emerald-200 group-hover:bg-emerald-50 transition-all">
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <motion.div
+                  initial={{ scale: 0, rotate: -45 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", damping: 10, stiffness: 200 }}
+                >
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                </motion.div>
                 <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">
                   Hasil Terakhir
                 </span>
@@ -2293,6 +2345,8 @@ const SubjectInterestTest = ({
     setReasons((prev) => ({ ...prev, [id]: text }));
   };
 
+  const [isCompleting, setIsCompleting] = useState(false);
+
   const handleSubmit = () => {
     if (selectedSubjects.length === 0) {
       alert("Silakan pilih minimal satu mata pelajaran.");
@@ -2306,9 +2360,55 @@ const SubjectInterestTest = ({
       sanitizedReasons[s] = reasons[s] || "";
     });
 
-    onComplete(scores, { reasons: sanitizedReasons });
-    localStorage.removeItem(getProgressKey(userId, "subject_interest"));
+    setIsCompleting(true);
+    setTimeout(() => {
+      onComplete(scores, { reasons: sanitizedReasons });
+      localStorage.removeItem(getProgressKey(userId, "subject_interest"));
+    }, 1500);
   };
+
+  if (isCompleting) {
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-3xl shadow-xl border border-slate-100 p-12 flex flex-col items-center justify-center text-center"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.2 }}
+            className="w-24 h-24 bg-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100 relative"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 1, repeat: Infinity }}
+              className="absolute inset-0 bg-emerald-500 rounded-full"
+            />
+            <Check className="w-12 h-12 text-white stroke-[4] z-10" />
+          </motion.div>
+          <motion.h3
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-2xl font-black text-slate-900 mb-2"
+          >
+            Tugas Selesai!
+          </motion.h3>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="text-slate-500"
+          >
+            Pilihan Anda telah disimpan. Menyiapkan hasil analisis...
+          </motion.p>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -2359,9 +2459,18 @@ const SubjectInterestTest = ({
                       : "bg-white border-slate-300"
                   }`}
                 >
-                  {selectedSubjects.includes(subject.id) && (
-                    <Check className="w-3.5 h-3.5 text-white" />
-                  )}
+                  <AnimatePresence>
+                    {selectedSubjects.includes(subject.id) && (
+                      <motion.div
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        transition={{ type: "spring", damping: 12, stiffness: 200 }}
+                      >
+                        <Check className="w-3.5 h-3.5 text-white" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 <span className="text-sm font-bold">{subject.name}</span>
               </label>
@@ -2504,6 +2613,8 @@ const DislikedSubjectsTest = ({
     setReasons((prev) => ({ ...prev, [id]: text }));
   };
 
+  const [isCompleting, setIsCompleting] = useState(false);
+
   const handleSubmit = () => {
     if (selectedSubjects.length === 0) {
       alert("Silakan pilih minimal satu mata pelajaran.");
@@ -2517,9 +2628,55 @@ const DislikedSubjectsTest = ({
       sanitizedReasons[s] = reasons[s] || "";
     });
 
-    onComplete(scores, { reasons: sanitizedReasons });
-    localStorage.removeItem(getProgressKey(userId, "disliked_subjects"));
+    setIsCompleting(true);
+    setTimeout(() => {
+      onComplete(scores, { reasons: sanitizedReasons });
+      localStorage.removeItem(getProgressKey(userId, "disliked_subjects"));
+    }, 1500);
   };
+
+  if (isCompleting) {
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-3xl shadow-xl border border-slate-100 p-12 flex flex-col items-center justify-center text-center"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.2 }}
+            className="w-24 h-24 bg-rose-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-rose-100 relative"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 1, repeat: Infinity }}
+              className="absolute inset-0 bg-rose-500 rounded-full"
+            />
+            <Check className="w-12 h-12 text-white stroke-[4] z-10" />
+          </motion.div>
+          <motion.h3
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-2xl font-black text-slate-900 mb-2"
+          >
+            Tugas Selesai!
+          </motion.h3>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="text-slate-500"
+          >
+            Pilihan Anda telah disimpan. Menyiapkan hasil analisis...
+          </motion.p>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -2570,9 +2727,18 @@ const DislikedSubjectsTest = ({
                       : "bg-white border-slate-300"
                   }`}
                 >
-                  {selectedSubjects.includes(subject.id) && (
-                    <Check className="w-3.5 h-3.5 text-white" />
-                  )}
+                  <AnimatePresence>
+                    {selectedSubjects.includes(subject.id) && (
+                      <motion.div
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        transition={{ type: "spring", damping: 12, stiffness: 200 }}
+                      >
+                        <Check className="w-3.5 h-3.5 text-white" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 <span className="text-sm font-bold">{subject.name}</span>
               </label>
@@ -2715,6 +2881,8 @@ const LikedTeachersTest = ({
     setReasons((prev) => ({ ...prev, [id]: text }));
   };
 
+  const [isCompleting, setIsCompleting] = useState(false);
+
   const handleSubmit = () => {
     if (selectedSubjects.length === 0) {
       alert("Silakan pilih minimal satu mata pelajaran.");
@@ -2728,9 +2896,55 @@ const LikedTeachersTest = ({
       sanitizedReasons[s] = reasons[s] || "";
     });
 
-    onComplete(scores, { reasons: sanitizedReasons });
-    localStorage.removeItem(getProgressKey(userId, "liked_teachers"));
+    setIsCompleting(true);
+    setTimeout(() => {
+      onComplete(scores, { reasons: sanitizedReasons });
+      localStorage.removeItem(getProgressKey(userId, "liked_teachers"));
+    }, 1500);
   };
+
+  if (isCompleting) {
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-3xl shadow-xl border border-slate-100 p-12 flex flex-col items-center justify-center text-center"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.2 }}
+            className="w-24 h-24 bg-rose-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-rose-100 relative"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 1, repeat: Infinity }}
+              className="absolute inset-0 bg-rose-500 rounded-full"
+            />
+            <Check className="w-12 h-12 text-white stroke-[4] z-10" />
+          </motion.div>
+          <motion.h3
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-2xl font-black text-slate-900 mb-2"
+          >
+            Tugas Selesai!
+          </motion.h3>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="text-slate-500"
+          >
+            Feedback Anda telah disimpan. Menyiapkan hasil analisis...
+          </motion.p>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -2781,9 +2995,18 @@ const LikedTeachersTest = ({
                       : "bg-white border-slate-300"
                   }`}
                 >
-                  {selectedSubjects.includes(subject.id) && (
-                    <Check className="w-3.5 h-3.5 text-white" />
-                  )}
+                  <AnimatePresence>
+                    {selectedSubjects.includes(subject.id) && (
+                      <motion.div
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        transition={{ type: "spring", damping: 12, stiffness: 200 }}
+                      >
+                        <Check className="w-3.5 h-3.5 text-white" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 <span className="text-sm font-bold">{subject.name}</span>
               </label>
@@ -2926,6 +3149,8 @@ const DislikedTeachersTest = ({
     setReasons((prev) => ({ ...prev, [id]: text }));
   };
 
+  const [isCompleting, setIsCompleting] = useState(false);
+
   const handleSubmit = () => {
     if (selectedSubjects.length === 0) {
       alert("Silakan pilih minimal satu mata pelajaran.");
@@ -2939,9 +3164,55 @@ const DislikedTeachersTest = ({
       sanitizedReasons[s] = reasons[s] || "";
     });
 
-    onComplete(scores, { reasons: sanitizedReasons });
-    localStorage.removeItem(getProgressKey(userId, "disliked_teachers"));
+    setIsCompleting(true);
+    setTimeout(() => {
+      onComplete(scores, { reasons: sanitizedReasons });
+      localStorage.removeItem(getProgressKey(userId, "disliked_teachers"));
+    }, 1500);
   };
+
+  if (isCompleting) {
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-3xl shadow-xl border border-slate-100 p-12 flex flex-col items-center justify-center text-center"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.2 }}
+            className="w-24 h-24 bg-slate-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-slate-100 relative"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 1, repeat: Infinity }}
+              className="absolute inset-0 bg-slate-500 rounded-full"
+            />
+            <Check className="w-12 h-12 text-white stroke-[4] z-10" />
+          </motion.div>
+          <motion.h3
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-2xl font-black text-slate-900 mb-2"
+          >
+            Tugas Selesai!
+          </motion.h3>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="text-slate-500"
+          >
+            Feedback Anda telah disimpan. Menyiapkan hasil analisis...
+          </motion.p>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -2992,9 +3263,18 @@ const DislikedTeachersTest = ({
                       : "bg-white border-slate-300"
                   }`}
                 >
-                  {selectedSubjects.includes(subject.id) && (
-                    <Check className="w-3.5 h-3.5 text-white" />
-                  )}
+                  <AnimatePresence>
+                    {selectedSubjects.includes(subject.id) && (
+                      <motion.div
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        transition={{ type: "spring", damping: 12, stiffness: 200 }}
+                      >
+                        <Check className="w-3.5 h-3.5 text-white" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 <span className="text-sm font-bold">{subject.name}</span>
               </label>
@@ -3131,6 +3411,8 @@ const DreamsTest = ({
     setAspirations(newAspirations);
   };
 
+  const [isCompleting, setIsCompleting] = useState(false);
+
   const handleSubmit = () => {
     if (!nextStep || !schoolInfo || !reason) {
       alert("Mohon lengkapi bagian Rencana Sekolah Lanjut");
@@ -3142,14 +3424,60 @@ const DreamsTest = ({
       return;
     }
 
-    onComplete({
-      nextStep,
-      schoolInfo,
-      reason,
-      aspirations: filteredAspirations,
-    });
-    localStorage.removeItem(getProgressKey(userId, "dreams"));
+    setIsCompleting(true);
+    setTimeout(() => {
+      onComplete({
+        nextStep,
+        schoolInfo,
+        reason,
+        aspirations: filteredAspirations,
+      });
+      localStorage.removeItem(getProgressKey(userId, "dreams"));
+    }, 1500);
   };
+
+  if (isCompleting) {
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <motion.div
+           initial={{ opacity: 0, scale: 0.9 }}
+           animate={{ opacity: 1, scale: 1 }}
+           className="bg-white rounded-3xl shadow-xl border border-slate-100 p-12 flex flex-col items-center justify-center text-center"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.2 }}
+            className="w-24 h-24 bg-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100 relative"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 1, repeat: Infinity }}
+              className="absolute inset-0 bg-emerald-500 rounded-full"
+            />
+            <Check className="w-12 h-12 text-white stroke-[4] z-10" />
+          </motion.div>
+          <motion.h3
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-2xl font-black text-slate-900 mb-2"
+          >
+            Rencana Tersimpan!
+          </motion.h3>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="text-slate-500"
+          >
+            Mimpi dan rencana masa depanmu telah dicatat. Menyiapkan hasil analisis...
+          </motion.p>
+        </motion.div>
+      </div>
+    );
+  }
 
   const getDetailLabel = () => {
     switch (nextStep) {
@@ -3558,11 +3886,19 @@ const WarteggTest = ({
                     {i + 1}
                   </div>
                 )}
-                {drawings[i] && (
-                  <div className="absolute top-1 right-1">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 fill-white" />
-                  </div>
-                )}
+                <AnimatePresence>
+                  {drawings[i] && (
+                    <motion.div
+                      initial={{ scale: 0, rotate: -45, opacity: 0 }}
+                      animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                      exit={{ scale: 0, rotate: -45, opacity: 0 }}
+                      transition={{ type: "spring", damping: 10, stiffness: 200 }}
+                      className="absolute top-1 right-1"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 fill-white" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </button>
             ))}
           </div>
@@ -3604,6 +3940,8 @@ const TestForm = ({
 }) => {
   const test = customTest || TESTS[type];
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [selectedOptIdx, setSelectedOptIdx] = useState<number | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [scores, setScores] = useState<Record<string, number>>({});
   const [history, setHistory] = useState<
@@ -3688,10 +4026,16 @@ const TestForm = ({
     setHistory((prev) => [...prev, { questionId, value, score }]);
 
     if (currentIdx < test.questions.length - 1) {
-      setCurrentIdx(currentIdx + 1);
+      setTimeout(() => {
+        setCurrentIdx(currentIdx + 1);
+        setSelectedOptIdx(null);
+      }, 400);
     } else {
-      onComplete(newScores);
-      localStorage.removeItem(getProgressKey(userId, type));
+      setIsCompleting(true);
+      setTimeout(() => {
+        onComplete(newScores);
+        localStorage.removeItem(getProgressKey(userId, type));
+      }, 1500);
     }
   };
 
@@ -3708,6 +4052,49 @@ const TestForm = ({
   };
 
   const progress = ((currentIdx + 1) / test.questions.length) * 100;
+
+  if (isCompleting) {
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-3xl shadow-xl border border-slate-100 p-12 flex flex-col items-center justify-center text-center"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.2 }}
+            className="w-24 h-24 bg-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100 relative"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 1, repeat: Infinity }}
+              className="absolute inset-0 bg-emerald-500 rounded-full"
+            />
+            <Check className="w-12 h-12 text-white stroke-[4] z-10" />
+          </motion.div>
+          <motion.h3
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-2xl font-black text-slate-900 mb-2"
+          >
+            Tugas Selesai!
+          </motion.h3>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="text-slate-500"
+          >
+            Jawaban Anda telah disimpan. Menyiapkan hasil analisis...
+          </motion.p>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (isAnalyzingTest) {
     return (
@@ -3740,7 +4127,8 @@ const TestForm = ({
     "bg-orange-500/20",
     "bg-fuchsia-500/20",
   ];
-  const color = colors[Object.keys(TESTS).indexOf(type) % colors.length];
+  const testIndexCase = Object.keys(TESTS).indexOf(type);
+  const color = colors[testIndexCase === -1 ? 0 : testIndexCase % colors.length];
 
   return (
     <div className="max-w-xl mx-auto py-6 px-4">
@@ -3867,20 +4255,49 @@ const TestForm = ({
                   (opt: any, i: number) => (
                     <button
                       key={i}
-                      onClick={() =>
+                      disabled={selectedOptIdx !== null}
+                      onClick={() => {
+                        setSelectedOptIdx(i);
                         handleAnswer(
                           test.questions[currentIdx].id,
                           opt.value,
                           opt.score,
-                        )
-                      }
-                      className={`w-full text-left p-4 rounded-xl border-2 border-white bg-white/10 hover:bg-white/30 transition-all group flex items-center justify-between ${color.replace("bg-", "text-").replace("/20", "")}`}
+                        );
+                      }}
+                      className={cn(
+                        "w-full text-left p-4 rounded-xl border-2 transition-all group flex items-center justify-between",
+                        selectedOptIdx === i
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                          : "border-white bg-white/10 hover:bg-white/30",
+                        color.replace("bg-", "text-").replace("/20", ""),
+                      )}
                     >
-                      <span className="text-sm text-slate-900 font-bold group-hover:text-slate-950">
+                      <span className={cn(
+                        "text-sm font-bold group-hover:text-slate-950",
+                        selectedOptIdx === i ? "text-emerald-700" : "text-slate-900"
+                      )}>
                         {opt?.text || "Opsi Kosong"}
                       </span>
-                      <div className="w-5 h-5 rounded-full border-2 border-white/50 group-hover:border-white flex items-center justify-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className={cn(
+                        "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                        selectedOptIdx === i 
+                          ? "bg-emerald-500 border-emerald-500" 
+                          : "border-white/50 group-hover:border-white"
+                      )}>
+                        <AnimatePresence mode="wait">
+                          {selectedOptIdx === i ? (
+                            <motion.div
+                              key="check"
+                              initial={{ scale: 0, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              transition={{ type: "spring", damping: 12 }}
+                            >
+                              <Check className="w-3 h-3 text-white stroke-[3px]" />
+                            </motion.div>
+                          ) : (
+                            <div key="dot" className="w-1.5 h-1.5 rounded-full bg-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </AnimatePresence>
                       </div>
                     </button>
                   ),
@@ -3926,7 +4343,7 @@ const ResultView = ({
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [vType, setVType] = useState<"bar" | "pie" | "radar">(() => {
     if (result.visualizationType) return result.visualizationType;
-    if (result.testType === "multiple_intelligences") return "radar";
+    if (result.testType === "multiple_intelligences" || result.testType === "aptitude_interest") return "radar";
     return "bar";
   });
 
@@ -4584,7 +5001,7 @@ Gunakan bahasa Indonesia yang ramah, profesional, memotivasi, dan format Markdow
 
       console.log("Sending request to Gemini models...");
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-pro-preview",
         contents: contents,
       });
 
@@ -4696,7 +5113,7 @@ Gunakan bahasa Indonesia yang ramah, profesional, memotivasi, dan format Markdow
     doc.text(`Kelas: ${result.studentClass || "Peserta Umum"}`, 20, currentY);
     currentY += 7;
     doc.text(
-      `Tanggal Tes: ${new Date(result.timestamp?.seconds * 1000).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}`,
+      `Tanggal Tes: ${result.timestamp?.seconds ? new Date(result.timestamp.seconds * 1000).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : (result.timestamp ? new Date(result.timestamp).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "-")}`,
       20,
       currentY,
     );
@@ -4828,7 +5245,7 @@ Gunakan bahasa Indonesia yang ramah, profesional, memotivasi, dan format Markdow
     }
 
     doc.save(
-      `Analisa_AI_${result.testType}_${result.studentName.replace(/\s+/g, "_")}.pdf`,
+      `Analisa_AI_${result.testType}_${(result.studentName || "Siswa").replace(/\s+/g, "_")}.pdf`,
     );
   };
 
@@ -5012,12 +5429,17 @@ Gunakan bahasa Indonesia yang ramah, profesional, memotivasi, dan format Markdow
               </div>
             </div>
 
-            <div className="prose prose-sm prose-emerald max-w-none text-slate-600 mt-6 pt-6 border-t border-slate-100">
-              {isGeneratingAI ? (
-                <PulseLoader text="Gemini AI sedang menganalisis..." />
-              ) : (
-                <ReactMarkdown>{result.analysis}</ReactMarkdown>
-              )}
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 mt-6 shadow-sm overflow-hidden">
+              <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <Brain className="w-4 h-4 text-emerald-600" /> Analisis & Rekomendasi AI
+              </h4>
+              <div className="prose prose-sm sm:prose-base prose-emerald max-w-none text-slate-600 markdown-body">
+                {isGeneratingAI ? (
+                  <PulseLoader text="Gemini AI sedang menganalisis..." />
+                ) : (
+                  <ReactMarkdown>{result.analysis}</ReactMarkdown>
+                )}
+              </div>
             </div>
           </motion.section>
 
@@ -5044,14 +5466,7 @@ Gunakan bahasa Indonesia yang ramah, profesional, memotivasi, dan format Markdow
                     </div>
                   </div>
                   <button
-                    onClick={() =>
-                      handleDownloadDetailedReport(
-                        result,
-                        results,
-                        teacherSettings,
-                        customTests
-                      )
-                    }
+                    onClick={handleDownloadAIExplanation}
                     className="p-3 bg-white text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95"
                     title="Unduh Laporan AI"
                   >
@@ -7187,7 +7602,7 @@ const LaporanIndividuSiswa = ({
                               customTests
                             )
                           }
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-100"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-100"
                           title="Cetak Laporan"
                         >
                           <Printer className="w-3.5 h-3.5" />
@@ -7483,7 +7898,7 @@ const LaporanIndividuUmum = ({
                               key={i}
                               className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[8px] font-bold border border-indigo-100"
                             >
-                              {TESTS[r.testType]?.title.replace("Tes ", "") ||
+                              {TESTS[r.testType as TestType]?.title?.replace("Tes ", "") ||
                                 r.testType}
                             </span>
                           ))}
@@ -9446,11 +9861,11 @@ const TAB_CONFIG: Record<
   string,
   { label: string; icon: any; colorClass?: string; activeColorClass?: string }
 > = {
-  dashboard: { label: "DASHBOARD", icon: LayoutDashboard },
-  students: { label: "Daftar Siswa", icon: GraduationCap },
-  monitor: { label: "Progres Tes", icon: Monitor },
-  history: { label: "Riwayat Tes", icon: History },
-  "hasil-tes": { label: "Hasil Tes", icon: ClipboardCheck },
+  dashboard: { label: "Dashboard Utama", icon: LayoutDashboard },
+  students: { label: "Manajemen Siswa", icon: GraduationCap },
+  monitor: { label: "Progres Tes Siswa", icon: Monitor },
+  history: { label: "Riwayat Tes Siswa", icon: History },
+  "hasil-tes": { label: "Hasil Tes Psikologi", icon: ClipboardCheck },
   "report-individu-siswa": {
     label: "Laporan Individu",
     icon: Printer,
@@ -9458,7 +9873,7 @@ const TAB_CONFIG: Record<
       "text-cyan-300 hover:bg-emerald-800/50 border border-emerald-700/50",
   },
   report: { label: "Laporan Kelas", icon: BarChart3 },
-  counseling: { label: "Catatan Konseling", icon: MessageSquare },
+  counseling: { label: "Catatan Konseling Terpadu", icon: MessageSquare },
   "manajemen-tamu": {
     label: "Manajemen Umum",
     icon: Users,
@@ -9484,9 +9899,10 @@ const TAB_CONFIG: Record<
       "text-indigo-300 hover:bg-indigo-800/50 border border-indigo-700/50",
     activeColorClass: "bg-indigo-600 text-white shadow-lg",
   },
-  teacher: { label: "Pengaturan Guru", icon: UserCog },
-  "backup-restore": { label: "BACKUP & RESTORE", icon: Database },
-  customization: { label: "KUSTOMISASI", icon: Settings2 },
+  teacher: { label: "Data Guru BK", icon: UserCog },
+  "backup-restore": { label: "Backup & Restore Data", icon: Database },
+  customization: { label: "Kustomisasi Dashboard", icon: Settings2 },
+  guide: { label: "Panduan Pengguna", icon: Info },
   "admin-users": {
     label: "ADMINISTRASI PENGGUNA",
     icon: ShieldCheck,
@@ -9663,7 +10079,7 @@ const AdminDashboard = ({
   const [tamuSearch, setTamuSearch] = useState("");
 
   const [sortStudentField, setSortStudentField] = useState<
-    "name" | "className" | "schoolName"
+    "name" | "className" | "schoolName" | "lastScore"
   >(() => (localStorage.getItem("adminSortStudentField") as any) || "name");
   const [sortStudentOrder, setSortStudentOrder] = useState<"asc" | "desc">(
     () => (localStorage.getItem("adminSortStudentOrder") as any) || "asc",
@@ -9695,6 +10111,7 @@ const AdminDashboard = ({
         "users",
         "custom_tests",
         "notifications",
+        "app_settings",
       ];
       const backupData: Record<string, any[]> = {};
 
@@ -9797,6 +10214,7 @@ const AdminDashboard = ({
     | "report-individu-siswa"
     | "report-individu-umum"
     | "customization"
+    | "guide"
   >(() => {
     // If we have a saved tab that is no longer available, default to dashboard
     const saved = localStorage.getItem("adminActiveTab");
@@ -10166,45 +10584,82 @@ const AdminDashboard = ({
     studentSchoolFilter,
   ]);
 
-  const filteredStudents = students
-    .filter((s) => {
-      const matchesSearch =
-        s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
-        s.className.toLowerCase().includes(studentSearch.toLowerCase()) ||
-        s.number.toLowerCase().includes(studentSearch.toLowerCase());
-      const matchesClass =
-        studentClassFilter === "all" || s.className === studentClassFilter;
-      const matchesSchool =
-        studentSchoolFilter === "all" || s.schoolName === studentSchoolFilter;
+  const filteredStudents = React.useMemo(() => {
+    return students
+      .filter((s) => {
+        const matchesSearch =
+          s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+          s.className.toLowerCase().includes(studentSearch.toLowerCase()) ||
+          s.number.toLowerCase().includes(studentSearch.toLowerCase());
+        const matchesClass =
+          studentClassFilter === "all" || s.className === studentClassFilter;
+        const matchesSchool =
+          studentSchoolFilter === "all" || s.schoolName === studentSchoolFilter;
 
-      const studentResults = results.filter(
-        (r) =>
-          r.studentId === s.id ||
-          (r.studentName === s.name && r.studentClass === s.className),
-      );
-      const hasTakenTest = studentResults.length > 0;
-      const matchesStatus =
-        studentStatusFilter === "all" ||
-        (studentStatusFilter === "belum_tes" && !hasTakenTest);
+        const studentResults = results.filter(
+          (r) =>
+            r.studentId === s.id ||
+            (r.studentName === s.name && r.studentClass === s.className),
+        );
+        const hasTakenTest = studentResults.length > 0;
+        const matchesStatus =
+          studentStatusFilter === "all" ||
+          (studentStatusFilter === "belum_tes" && !hasTakenTest);
 
-      return matchesSearch && matchesClass && matchesStatus && matchesSchool;
-    })
-    .sort((a, b) => {
-      let cmp = 0;
-      const valA = a[sortStudentField] || "";
-      const valB = b[sortStudentField] || "";
+        return matchesSearch && matchesClass && matchesStatus && matchesSchool;
+      })
+      .map((s) => {
+        const studentResults = results.filter(
+          (r) =>
+            r.studentId === s.id ||
+            (r.studentName === s.name && r.studentClass === s.className),
+        );
+        const latestResult = [...studentResults].sort((a, b) => {
+          const timeA =
+            a.timestamp?.seconds ||
+            (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
+          const timeB =
+            b.timestamp?.seconds ||
+            (b.createdAt ? new Date(b.createdAt).getTime() / 1000 : 0);
+          return timeB - timeA;
+        })[0];
 
-      if (sortStudentField === "className") {
-        cmp = valA.localeCompare(valB, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        });
-      } else {
-        cmp = valA.localeCompare(valB, undefined, { sensitivity: "base" });
-      }
+        return {
+          ...s,
+          _lastScore: latestResult
+            ? getNumericalScore(latestResult.testType as TestType, latestResult.scores)
+            : -1,
+        };
+      })
+      .sort((a, b) => {
+        let cmp = 0;
+        if (sortStudentField === "lastScore") {
+          cmp = (a._lastScore as number) - (b._lastScore as number);
+        } else if (sortStudentField === "className") {
+          const valA = a[sortStudentField] || "";
+          const valB = b[sortStudentField] || "";
+          cmp = valA.localeCompare(valB, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          });
+        } else {
+          const valA = a[sortStudentField] || "";
+          const valB = b[sortStudentField] || "";
+          cmp = valA.localeCompare(valB, undefined, { sensitivity: "base" });
+        }
 
-      return sortStudentOrder === "asc" ? cmp : -cmp;
-    });
+        return sortStudentOrder === "asc" ? cmp : -cmp;
+      });
+  }, [
+    students,
+    studentSearch,
+    studentClassFilter,
+    studentStatusFilter,
+    studentSchoolFilter,
+    results,
+    sortStudentField,
+    sortStudentOrder,
+  ]);
 
   const handleExportStudents = () => {
     const data = students.map((s) => ({
@@ -10567,6 +11022,55 @@ const AdminDashboard = ({
     }));
   }, [filteredResults, filterType]);
 
+  const groupedClassData = React.useMemo(() => {
+    const relevantResults = filteredResults.filter(
+      (r) => r.testType === filterType,
+    );
+    const classGroups: Record<string, { scores: Record<string, number>, count: number }> = {};
+    relevantResults.forEach((r) => {
+      const className = r.studentClass || "Tanpa Kelas";
+      if (!classGroups[className]) {
+        classGroups[className] = { scores: {}, count: 0 };
+      }
+      Object.entries(r.scores).forEach(([name, val]) => {
+        classGroups[className].scores[name] = (classGroups[className].scores[name] || 0) + (val as number);
+      });
+      classGroups[className].count += 1;
+    });
+
+    const data: any[] = [];
+    Object.entries(classGroups).forEach(([className, group]) => {
+      const avgScores: any = { name: className };
+      Object.entries(group.scores).forEach(([scoreName, totalScore]) => {
+        avgScores[scoreName] = totalScore / group.count;
+      });
+      data.push(avgScores);
+    });
+    return data;
+  }, [filteredResults, filterType]);
+
+  const pivotedClassData = React.useMemo(() => {
+    const relevantResults = filteredResults.filter((r) => r.testType === filterType);
+    const classes = Array.from(
+      new Set(relevantResults.map((r) => r.studentClass || "Tanpa Kelas")),
+    );
+    const dimensions = Array.from(
+      new Set(relevantResults.flatMap((r) => Object.keys(r.scores))),
+    );
+
+    return dimensions.map((dim) => {
+      const row: any = { dimension: dim };
+      classes.forEach((cls) => {
+        const classResults = relevantResults.filter(
+          (r) => (r.studentClass || "Tanpa Kelas") === cls,
+        );
+        const scores = classResults.map((r) => r.scores[dim] || 0);
+        row[cls] = scores.reduce((a, b) => a + b, 0) / (scores.length || 1);
+      });
+      return row;
+    });
+  }, [filteredResults, filterType]);
+
   const tableFilteredResults = React.useMemo(() => {
     return results
       .filter((r) => {
@@ -10819,6 +11323,22 @@ const AdminDashboard = ({
       setNewStudentClass("");
       setNewStudentSchool("");
       showToast("Siswa berhasil ditambahkan.", "success");
+
+      // Notify BK Teachers in the same school
+      const bkTeachers = allUsers.filter(
+        (u) => u.role === "teacher" && u.schoolName === newStudentSchool,
+      );
+      for (const teacher of bkTeachers) {
+        await addDoc(collection(db, "notifications"), {
+          userId: teacher.id,
+          teacherId: teacher.id,
+          title: "Siswa Baru Telah Ditambahkan",
+          message: `Siswa baru "${newStudentName}" telah ditambahkan ke sekolah ${newStudentSchool}. Silakan cek data siswa.`,
+          type: "info",
+          read: false,
+          timestamp: serverTimestamp(),
+        });
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, "students");
     }
@@ -11079,6 +11599,118 @@ const AdminDashboard = ({
     doc.save(`Kartu_Login_Siswa_${new Date().getTime()}.pdf`);
     showToast(
       `${studentsToPrint.length} Kartu login berhasil dibuat.`,
+      "success",
+    );
+  };
+
+  const handlePrintStudentManagementReport = (studentsToReport: StudentData[]) => {
+    if (studentsToReport.length === 0) {
+      showToast("Pilih siswa terlebih dahulu untuk mencetak laporan.", "info");
+      return;
+    }
+
+    const doc = new jsPDF();
+    let currentY = 15;
+
+    // Kop Surat
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text(
+      teacherSettings?.pemdaName?.toUpperCase() || "PEMERINTAH PROVINSI / KOTA",
+      105,
+      currentY,
+      { align: "center" },
+    );
+    currentY += 7;
+    doc.text(
+      teacherSettings?.dinasName?.toUpperCase() || "DINAS PENDIDIKAN",
+      105,
+      currentY,
+      { align: "center" },
+    );
+    currentY += 8;
+    doc.setFontSize(14);
+    const headerSchoolName =
+      teacherSettings?.schoolName ||
+      studentsToReport[0]?.schoolName ||
+      "NAMA SEKOLAH ANDA DISINI";
+    doc.text(headerSchoolName.toUpperCase(), 105, currentY, {
+      align: "center",
+    });
+    currentY += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      teacherSettings?.schoolAddress ||
+        "Alamat Lengkap Sekolah, No. Telp, Website, Email",
+      105,
+      currentY,
+      { align: "center" },
+    );
+    currentY += 4;
+    doc.line(20, currentY, 190, currentY);
+    currentY += 1;
+    doc.line(20, currentY, 190, currentY);
+    currentY += 14;
+
+    // Header
+    doc.setFontSize(16);
+    doc.setTextColor(79, 70, 229);
+    doc.setFont("helvetica", "bold");
+    doc.text("LAPORAN DATA DAN PERKEMBANGAN SISWA", 105, currentY, {
+      align: "center",
+    });
+    currentY += 10;
+
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Dicetak pada: ${new Date().toLocaleString("id-ID")}`, 105, currentY, { align: "center" });
+    currentY += 10;
+
+    const tableData = studentsToReport.map((s, index) => {
+      const studentResults = results.filter(
+        (r) =>
+          r.studentId === s.id ||
+          (r.studentName === s.name && r.studentClass === s.className),
+      );
+      
+      const latestResult = [...studentResults].sort((a, b) => {
+        const timeA = a.timestamp?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
+        const timeB = b.timestamp?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() / 1000 : 0);
+        return timeB - timeA;
+      })[0];
+
+      return [
+        index + 1,
+        s.number,
+        s.name,
+        s.className,
+        latestResult 
+          ? `${TESTS[latestResult.testType as TestType]?.title || latestResult.testType}: ${getShortResult(latestResult.testType as TestType, latestResult.scores)}`
+          : "Belum Ada Data"
+      ];
+    });
+
+    (doc as any).autoTable({
+      startY: currentY,
+      head: [["No", "ID", "Nama Siswa", "Kelas", "Hasil Tes Terakhir"]],
+      body: tableData,
+      theme: "striped",
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontSize: 9 },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 10 },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 80 }
+      }
+    });
+
+    doc.save(`Laporan_Siswa_${new Date().getTime()}.pdf`);
+    showToast(
+      `${studentsToReport.length} Laporan siswa berhasil diunduh.`,
       "success",
     );
   };
@@ -11533,7 +12165,7 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                             setIsSidebarOpen(false);
                           }}
                           className={cn(
-                            "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-[11px] font-bold transition-all",
+                            "group relative w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-[11px] font-bold transition-all overflow-hidden",
                             isActive
                               ? config.activeColorClass ||
                                   "bg-emerald-600 text-white shadow-lg"
@@ -11545,7 +12177,16 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                                   "text-emerald-100/70 hover:bg-emerald-800/50",
                           )}
                         >
-                          <Icon className="w-4 h-4" /> {config.label}
+                          <div
+                            className={cn(
+                              "absolute left-0 top-0 bottom-0 w-1 bg-white/40 transition-all duration-300 origin-left scale-x-0",
+                              isActive
+                                ? "scale-x-100 bg-white"
+                                : "group-hover:scale-x-100 opacity-0 group-hover:opacity-100",
+                            )}
+                          />
+                          <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />{" "}
+                          <span className="truncate">{config.label}</span>
                         </button>
                       );
                     })}
@@ -11557,6 +12198,7 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
         </div>
 
         {(user.email?.toLowerCase() === "dutatama@gmail.com" ||
+          user.email?.toLowerCase() === "purnomowiwit@gmail.com" ||
           user.role === "admin") && (
           <div className="px-4 pb-6">
             <button
@@ -11590,8 +12232,9 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
       />
 
       {/* Main Content */}
-      <div className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-8 bg-slate-50/50">
-        <div className="w-full space-y-8 px-2 sm:px-6">
+      <div className="flex-1 min-w-0 overflow-y-auto scroll-smooth">
+        <div className="p-4 sm:p-8 bg-slate-50/50">
+          <div className="w-full max-w-[1600px] mx-auto space-y-8">
           {/* Critical Anxiety Alerts */}
           {notifications.filter((n) => n.type === "warning" && !n.read).length >
             0 && (
@@ -11679,169 +12322,280 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
               className="space-y-6"
             >
               {/* Summary Cards */}
-              {enabledWidgets.includes("summary_cards") && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5 hover:shadow-md transition-shadow">
-                    <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0">
-                      <ClipboardCheck className="w-7 h-7 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                        Total Tes
-                      </p>
-                      <h4 className="text-3xl font-black text-slate-900">
-                        {totalTests}
-                      </h4>
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <motion.div
+                  whileHover={{ y: -4 }}
+                  className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-start gap-4"
+                >
+                  <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0">
+                    <Users className="w-7 h-7 text-indigo-600" />
                   </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Siswa Aktif
+                    </p>
+                    <p className="text-3xl font-black text-slate-900 leading-none">
+                      {students.length}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-2 font-bold">
+                      Terdaftar dalam sistem
+                    </p>
+                  </div>
+                </motion.div>
 
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5 hover:shadow-md transition-shadow">
-                    <div className="w-14 h-14 bg-teal-50 rounded-2xl flex items-center justify-center shrink-0">
-                      <Users className="w-7 h-7 text-teal-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                        Siswa Unik
-                      </p>
-                      <h4 className="text-3xl font-black text-slate-900">
-                        {uniqueStudents}
-                      </h4>
-                    </div>
+                <motion.div
+                  whileHover={{ y: -4 }}
+                  className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-start gap-4"
+                >
+                  <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0">
+                    <ClipboardCheck className="w-7 h-7 text-emerald-600" />
                   </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Tes Belum Diikuti
+                    </p>
+                    <p className="text-3xl font-black text-slate-900 leading-none">
+                      {(() => {
+                        const testCount = Object.keys(TESTS).length;
+                        const studentResults = rawResults.filter((r) =>
+                          students.some(
+                            (s) =>
+                              s.id === r.studentId ||
+                              (s.name === r.studentName &&
+                                s.className === r.studentClass),
+                          ),
+                        );
+                        const totalPotential = students.length * testCount;
+                        return Math.max(0, totalPotential - studentResults.length);
+                      })()}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-2 font-bold">
+                      Berdasarkan {students.length} siswa & {Object.keys(TESTS).length} jenis tes
+                    </p>
+                  </div>
+                </motion.div>
 
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5 hover:shadow-md transition-shadow">
-                    <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0">
-                      <BarChart3 className="w-7 h-7 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                        Rata-rata Skor*
-                      </p>
-                      <h4 className="text-3xl font-black text-slate-900">
-                        {avgScore}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                        *Populer:{" "}
-                        {mostFrequentTestType?.replace("_", " ") || "-"}
-                      </p>
-                    </div>
+                <motion.div
+                  whileHover={{ y: -4 }}
+                  className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-start gap-4"
+                >
+                  <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0">
+                    <MessageSquare className="w-7 h-7 text-indigo-600" />
                   </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Sesi Konseling
+                    </p>
+                    <p className="text-3xl font-black text-slate-900 leading-none">
+                      {counselingLogs.length}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-2 font-bold">
+                      Total catatan terdaftar
+                    </p>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Ringkasan Siswa per Kelas */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <LayoutDashboard className="w-4 h-4 text-emerald-600" /> RINGKASAN SISWA PER KELAS
+                </h4>
+                <div className="flex flex-wrap gap-3">
+                  {classes.map((c) => (
+                    <div
+                      key={c.id}
+                      className="bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 flex items-center gap-3"
+                    >
+                      <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shrink-0 border border-slate-100 shadow-sm">
+                        <Users className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-slate-500 leading-none mb-1 uppercase tracking-tighter">
+                          {c.name}
+                        </p>
+                        <p className="text-sm font-black text-slate-900 leading-none">
+                          {studentsCountByClass[c.name] || 0} Siswa
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {enabledWidgets.includes("test_distribution") && (
-                  <div
-                    className={cn(
-                      "bg-white p-6 rounded-2xl border border-slate-200 shadow-sm",
-                      enabledWidgets.includes("quick_stats")
-                        ? "lg:col-span-2"
-                        : "lg:col-span-3",
-                    )}
-                  >
-                    <h3 className="text-base font-bold text-slate-900 mb-6">
-                      Distribusi Tes (Terfilter)
-                    </h3>
-                    <div className="h-72">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={pieData}>
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            vertical={false}
-                            stroke="#e2e8f0"
-                          />
-                          <XAxis
-                            dataKey="name"
-                            fontSize={11}
-                            tick={{ fill: "#64748b" }}
-                            axisLine={false}
-                            tickLine={false}
-                          />
-                          <YAxis
-                            fontSize={11}
-                            tick={{ fill: "#64748b" }}
-                            axisLine={false}
-                            tickLine={false}
-                          />
-                          <Tooltip
-                            cursor={{ fill: "#f8fafc" }}
-                            contentStyle={{
-                              borderRadius: "12px",
-                              border: "none",
-                              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                            }}
-                          />
-                          <Bar
-                            dataKey="value"
-                            radius={[6, 6, 0, 0]}
-                            maxBarSize={60}
-                          >
-                            {pieData.map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={COLORS[index % COLORS.length]}
-                              />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
+              {/* Kartu Tes Psikologi */}
+              {(() => {
+                const testTypes = Object.keys(TESTS) as TestType[];
+                const testCounts = testTypes.reduce((acc, type) => {
+                  acc[type] = results.filter(r => r.testType === type).length;
+                  return acc;
+                }, {} as Record<string, number>);
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                    {testTypes.map((type) => (
+                      <div
+                        key={type}
+                        className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center hover:shadow-md transition-shadow"
+                      >
+                        <span
+                          className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 line-clamp-1"
+                          title={TESTS[type].title}
+                        >
+                          {TESTS[type].title}
+                        </span>
+                        <span className="text-xl font-black text-emerald-600">
+                          {testCounts[type] || 0}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-medium mt-0.5">
+                          Siswa Selesai
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                )}
+                );
+              })()}
 
-                {enabledWidgets.includes("quick_stats") && (
-                  <div
-                    className={cn(
-                      "bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col",
-                      !enabledWidgets.includes("test_distribution") &&
-                        "lg:col-span-3",
-                    )}
-                  >
-                    <h3 className="text-base font-bold text-slate-900 mb-6">
-                      Statistik Cepat
-                    </h3>
-                    <div className="space-y-4 flex-1">
-                      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-white rounded-lg text-emerald-600 shadow-sm border border-slate-200">
-                            <Users className="w-4 h-4" />
-                          </div>
-                          <span className="font-bold text-slate-700 text-sm">
-                            Total Kelas
-                          </span>
-                        </div>
-                        <span className="text-lg font-black text-emerald-600">
-                          {classes.length}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-white rounded-lg text-teal-600 shadow-sm border border-slate-200">
-                            <GraduationCap className="w-4 h-4" />
-                          </div>
-                          <span className="font-bold text-slate-700 text-sm">
-                            Siswa Terdaftar
-                          </span>
-                        </div>
-                        <span className="text-lg font-black text-teal-600">
-                          {students.length}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-white rounded-lg text-emerald-600 shadow-sm border border-slate-200">
-                            <ClipboardCheck className="w-4 h-4" />
-                          </div>
-                          <span className="font-bold text-slate-700 text-sm">
-                            Hasil Terfilter
-                          </span>
-                        </div>
-                        <span className="text-lg font-black text-emerald-600">
-                          {filteredResults.length}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+              {/* Recent Tests Block */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                  <h3 className="text-base font-bold text-slate-900">
+                    5 Data Tes Terakhir
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-white border-b border-slate-100 text-slate-500 text-[10px] uppercase tracking-widest font-black">
+                      <tr>
+                        <th className="px-6 py-4">SISWA</th>
+                        <th className="px-6 py-4 text-emerald-600">NAMA SEKOLAH</th>
+                        <th className="px-6 py-4">KELAS</th>
+                        <th className="px-6 py-4">GURU BK</th>
+                        <th className="px-6 py-4">JENIS TES</th>
+                        <th className="px-6 py-4">TANGGAL</th>
+                        <th className="px-6 py-4">WAKTU</th>
+                        <th className="px-6 py-4 text-center">HASIL TES</th>
+                        <th className="px-6 py-4 text-right">AKSI</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {[...results]
+                        .filter(isStudentResult)
+                        .sort((a, b) => {
+                          const timeA = a.timestamp?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
+                          const timeB = b.timestamp?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() / 1000 : 0);
+                          return timeB - timeA;
+                        })
+                        .slice(0, 5)
+                        .map((r, i) => {
+                          const student = students.find(
+                            (s) =>
+                              s.id === r.studentId ||
+                              (s.name === r.studentName &&
+                                s.className === r.studentClass),
+                          );
+                          const dateObj = r.timestamp 
+                            ? new Date(r.timestamp.seconds * 1000) 
+                            : (r.createdAt ? new Date(r.createdAt) : new Date(0));
+                          
+                          return (
+                            <tr key={r.id || i} className="hover:bg-slate-50/80 transition-colors text-sm">
+                              <td className="px-6 py-4 font-bold text-slate-900">
+                                <button
+                                  onClick={() => setTestResult(r)}
+                                  className="hover:text-emerald-600 hover:underline text-left"
+                                >
+                                  {r.studentName}
+                                </button>
+                              </td>
+                              <td className="px-6 py-4 text-slate-600 font-medium">
+                                {student?.schoolName || "-"}
+                              </td>
+                              <td className="px-6 py-4 text-slate-600 font-medium">
+                                {r.studentClass || "-"}
+                              </td>
+                              <td className="px-6 py-4 text-slate-500 font-medium">
+                                {allUsers.find(
+                                  (u) =>
+                                    u.uid === r.teacherId || u.id === r.teacherId,
+                                )?.name || 
+                                 (r.teacherId === user?.uid ? user?.name : "Administrator")}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-black border border-emerald-100/50 tracking-wide uppercase">
+                                  {TESTS[r.testType as TestType]?.title || r.testType}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">
+                                {dateObj.toLocaleDateString("id-ID")}
+                              </td>
+                              <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">
+                                {dateObj.toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg inline-block border border-emerald-100/50 tracking-wide uppercase">
+                                  {getShortResult(r.testType as TestType, r.scores)}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => {
+                                      const student = students.find(
+                                        (s) =>
+                                          s.id === r.studentId ||
+                                          (s.name === r.studentName &&
+                                            s.className === r.studentClass),
+                                      );
+                                      if (student) {
+                                        setEditingStudent(student);
+                                        setActiveTab("students");
+                                      } else {
+                                        showToast(
+                                          "Data siswa tidak ditemukan.",
+                                          "error",
+                                        );
+                                      }
+                                    }}
+                                    className="text-emerald-600 hover:text-emerald-800 p-2 rounded-lg hover:bg-emerald-50 transition-colors flex items-center gap-1.5 border border-transparent hover:border-emerald-100"
+                                    title="Edit Data Siswa"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => setTestResult(r)}
+                                    className="text-emerald-600 hover:text-emerald-800 p-2 rounded-lg hover:bg-emerald-50 transition-colors flex items-center gap-1.5 border border-transparent hover:border-emerald-100"
+                                    title="Lihat Hasil Tes"
+                                  >
+                                    <FileText className="w-4 h-4" />
+                                    <span className="font-bold text-[10px]">
+                                      LIHAT
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      r.id &&
+                                      setConfirmDelete({
+                                        id: r.id,
+                                        type: "result",
+                                        title: "Hapus Hasil Tes",
+                                        message: `Hapus hasil tes ${r.studentName}?`,
+                                      })
+                                    }
+                                    className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1.5 border border-transparent hover:border-red-100"
+                                    title="Hapus Hasil Tes"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+                {results.length === 0 && (
+                  <div className="p-6 text-sm text-slate-500">Belum ada data.</div>
                 )}
               </div>
             </motion.div>
@@ -12025,7 +12779,7 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                     />
                     <div className="bg-emerald-50 p-4 rounded-xl flex items-center justify-between">
                        <span className="text-xs font-bold text-emerald-800">Preview Logo Aktif:</span>
-                       <img src={appSettings?.logoUrl || "https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9"} alt="Preview Logo" className="h-10 w-auto mix-blend-multiply" referrerPolicy="no-referrer" />
+                       <img src={appSettings?.logoUrl || "https://lh3.googleusercontent.com/d/1UNix_IGpjmt2q0apsIQy-6s3Zr9SnLJ9"} alt="Preview Logo" className="h-10 w-auto" />
                     </div>
                   </div>
                 </div>
@@ -12366,6 +13120,17 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                         className="bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 py-1 outline-none"
                       />
                     </div>
+                    <button
+                      onClick={() => {
+                        setHistorySearch("");
+                        setTableTypeFilter("all");
+                        setHistoryDate("");
+                        setCurrentPage(1);
+                      }}
+                      className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 text-sm font-bold"
+                    >
+                      Reset Filter
+                    </button>
                     <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
                       <School className="w-4 h-4 text-slate-400" />
                       <select
@@ -12754,9 +13519,24 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                           : filteredStudents,
                       )
                     }
-                    className="px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-bold text-xs hover:bg-indigo-100 flex items-center gap-2 transition-colors"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 flex items-center gap-2 transition-all shadow-sm hover:shadow-indigo-100 hover:scale-[1.02] active:scale-95"
                   >
                     <Contact className="w-4 h-4" /> CETAK KARTU LOGIN{" "}
+                    {selectedStudentIds.length > 0 ? "(TERPILIH)" : ""}
+                  </button>
+                  <button
+                    onClick={() =>
+                      handlePrintStudentManagementReport(
+                        selectedStudentIds.length > 0
+                          ? students.filter((s) =>
+                              selectedStudentIds.includes(s.id!),
+                            )
+                          : filteredStudents,
+                      )
+                    }
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs hover:bg-emerald-700 flex items-center gap-2 transition-all shadow-sm hover:shadow-emerald-100 hover:scale-[1.02] active:scale-95"
+                  >
+                    <Printer className="w-4 h-4" /> CETAK LAPORAN{" "}
                     {selectedStudentIds.length > 0 ? "(TERPILIH)" : ""}
                   </button>
                   <button
@@ -12927,6 +13707,23 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                     <option value="belum_tes">BELUM IKUT TES</option>
                   </select>
                   <select
+                    value={sortStudentField}
+                    onChange={(e) => setSortStudentField(e.target.value as any)}
+                    className="w-full sm:w-48 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-600 outline-none text-sm font-bold text-slate-700 bg-white"
+                  >
+                    <option value="name">URUT: NAMA</option>
+                    <option value="className">URUT: KELAS</option>
+                    <option value="schoolName">URUT: SEKOLAH</option>
+                    <option value="lastScore">URUT: SKOR AKHIR</option>
+                  </select>
+                  <button
+                    onClick={() => setSortStudentOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-400 hover:text-emerald-600 transition-colors"
+                    title={sortStudentOrder === 'asc' ? "Urutan Menurun" : "Urutan Menaik"}
+                  >
+                    {sortStudentOrder === 'asc' ? <SortAsc className="w-5 h-5" /> : <SortDesc className="w-5 h-5" />}
+                  </button>
+                  <select
                     value={studentClassFilter}
                     onChange={(e) => setStudentClassFilter(e.target.value)}
                     className="w-full sm:w-48 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-600 outline-none text-sm font-bold text-slate-700 bg-white"
@@ -13028,29 +13825,23 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                 </div>
               </div>
 
-              <div className="max-h-[500px] overflow-y-auto border border-slate-200 rounded-2xl shadow-sm">
-                <div
-                  className="overflow-x-auto min-w-[1000px]"
-                  style={{ transform: "rotateX(180deg)" }}
-                >
-                  <div style={{ transform: "rotateX(180deg)" }}>
-                    <table className="w-full text-left min-w-[1000px]">
-                      <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
-                        <tr className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <div className="space-y-6">
+                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto text-slate-700">
+                    <table className="w-full text-left border-collapse min-w-[1000px]">
+                      <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-100">
                           <th className="px-6 py-4 w-12">
                             <input
                               type="checkbox"
                               checked={
                                 filteredStudents.length > 0 &&
-                                selectedStudentIds.length ===
-                                  filteredStudents.length
+                                selectedStudentIds.length === filteredStudents.length
                               }
                               onChange={(e) => {
                                 if (e.target.checked) {
                                   setSelectedStudentIds(
-                                    filteredStudents
-                                      .map((s) => s.id!)
-                                      .filter(Boolean),
+                                    filteredStudents.map((s) => s.id!).filter(Boolean),
                                   );
                                 } else {
                                   setSelectedStudentIds([]);
@@ -13059,290 +13850,211 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                               className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                             />
                           </th>
-                          <th className="px-6 py-4">No</th>
-                          <th className="px-6 py-4">ID/ABSEN</th>
-                          <th className="px-6 py-4">PASSWORD</th>
-                          <th
-                            className="px-6 py-4 cursor-pointer hover:bg-slate-100"
-                            onClick={() => {
-                              setSortStudentField("name");
-                              setSortStudentOrder(
-                                sortStudentField === "name" &&
-                                  sortStudentOrder === "asc"
-                                  ? "desc"
-                                  : "asc",
-                              );
-                            }}
-                          >
-                            Nama Siswa{" "}
-                            {sortStudentField === "name" &&
-                              (sortStudentOrder === "asc" ? "▲" : "▼")}
-                          </th>
-                          <th
-                            className="px-6 py-4 cursor-pointer hover:bg-slate-100"
-                            onClick={() => {
-                              setSortStudentField("className");
-                              setSortStudentOrder(
-                                sortStudentField === "className" &&
-                                  sortStudentOrder === "asc"
-                                  ? "desc"
-                                  : "asc",
-                              );
-                            }}
-                          >
-                            Kelas{" "}
-                            {sortStudentField === "className" &&
-                              (sortStudentOrder === "asc" ? "▲" : "▼")}
-                          </th>
-                          <th
-                            className="px-6 py-4 cursor-pointer hover:bg-slate-100"
-                            onClick={() => {
-                              setSortStudentField("schoolName");
-                              setSortStudentOrder(
-                                sortStudentField === "schoolName" &&
-                                  sortStudentOrder === "asc"
-                                  ? "desc"
-                                  : "asc",
-                              );
-                            }}
-                          >
-                            Nama Sekolah{" "}
-                            {sortStudentField === "schoolName" &&
-                              (sortStudentOrder === "asc" ? "▲" : "▼")}
-                          </th>
-                          <th className="px-6 py-4 text-right">Aksi</th>
+                          <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Siswa</th>
+                          <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kredensial</th>
+                          <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kelas & Sekolah</th>
+                          <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hasil Terakhir</th>
+                          <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
+                      <tbody className="divide-y divide-slate-100">
                         {filteredStudents.length > 0 ? (
                           filteredStudents
                             .slice(
                               (currentPage - 1) * itemsPerPage,
                               currentPage * itemsPerPage,
                             )
-                            .map((s, idx) => (
-                              <tr
-                                key={s.id || idx}
-                                className={cn(
-                                  "text-sm transition-colors",
-                                  selectedStudentIds.includes(s.id!)
-                                    ? "bg-emerald-50/30"
-                                    : recentlyAddedIds.includes(s.id!)
-                                      ? "bg-emerald-50/50"
-                                      : "hover:bg-slate-50/80",
-                                )}
-                              >
-                                <td className="px-6 py-4">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedStudentIds.includes(s.id!)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setSelectedStudentIds((prev) => [
-                                          ...prev,
-                                          s.id!,
-                                        ]);
-                                      } else {
-                                        setSelectedStudentIds((prev) =>
-                                          prev.filter((id) => id !== s.id),
-                                        );
-                                      }
-                                    }}
-                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                                  />
-                                </td>
-                                {editingStudent?.id === s.id ? (
-                                  <>
-                                    <td className="px-6 py-3 text-xs font-bold text-slate-400 text-center">
-                                      {(currentPage - 1) * itemsPerPage +
-                                        idx +
-                                        1}
-                                    </td>
-                                    <td className="px-6 py-3">
-                                      <input
-                                        type="text"
-                                        value={editingStudent.number}
-                                        onChange={(e) =>
-                                          setEditingStudent({
-                                            ...editingStudent,
-                                            number: e.target.value,
-                                          })
+                            .map((s, idx) => {
+                              const studentResults = results.filter(
+                                (r) =>
+                                  r.studentId === s.id ||
+                                  (r.studentName === s.name &&
+                                    r.studentClass === s.className),
+                              );
+                              const latestResult = [...studentResults].sort((a, b) => {
+                                const timeA = a.timestamp?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
+                                const timeB = b.timestamp?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() / 1000 : 0);
+                                return timeB - timeA;
+                              })[0];
+
+                              const isEditing = editingStudent?.id === s.id;
+
+                              return (
+                                <tr 
+                                  key={s.id || idx}
+                                  className={cn(
+                                    "group transition-all hover:bg-slate-50/50",
+                                    selectedStudentIds.includes(s.id!) ? "bg-emerald-50/30" : "",
+                                    recentlyAddedIds.includes(s.id!) ? "bg-emerald-50/10" : ""
+                                  )}
+                                >
+                                  <td className="px-6 py-4">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedStudentIds.includes(s.id!)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedStudentIds((prev) => [...prev, s.id!]);
+                                        } else {
+                                          setSelectedStudentIds((prev) => prev.filter((id) => id !== s.id));
                                         }
-                                        className="w-full px-3 py-1.5 rounded-lg border border-emerald-300 outline-none text-xs font-mono"
-                                      />
-                                    </td>
-                                    <td className="px-6 py-3">
-                                      <div className="relative group/pwd">
-                                        <input
-                                          type="text"
-                                          value={editingStudent.password}
-                                          onChange={(e) => {
-                                            const val =
-                                              e.target.value.toUpperCase();
-                                            if (
-                                              val === "" ||
-                                              /^[0-9A-Z]+$/.test(val)
-                                            ) {
-                                              setEditingStudent({
-                                                ...editingStudent,
-                                                password: val,
-                                              });
-                                            }
-                                          }}
-                                          className="w-full px-3 py-1.5 pr-8 rounded-lg border border-emerald-300 outline-none text-xs font-mono"
-                                        />
-                                        <button
-                                          onClick={() => {
-                                            const chars =
-                                              "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-                                            let result = "";
-                                            for (let i = 0; i < 5; i++) {
-                                              result += chars.charAt(
-                                                Math.floor(
-                                                  Math.random() * chars.length,
-                                                ),
-                                              );
-                                            }
-                                            setEditingStudent({
-                                              ...editingStudent,
-                                              password: result,
-                                            });
-                                          }}
-                                          title="Generate Password Otomatis"
-                                          className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-emerald-600 transition-colors"
-                                        >
-                                          <RefreshCcw className="w-3 h-3" />
-                                        </button>
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-3">
+                                      }}
+                                      className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                    />
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    {isEditing ? (
                                       <input
                                         type="text"
                                         value={editingStudent.name}
-                                        onChange={(e) =>
-                                          setEditingStudent({
-                                            ...editingStudent,
-                                            name: e.target.value,
-                                          })
-                                        }
-                                        className="w-full px-3 py-1.5 rounded-lg border border-emerald-300 outline-none text-sm font-bold"
+                                        onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })}
+                                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 outline-none text-sm font-bold focus:border-emerald-500"
                                       />
-                                    </td>
-                                    <td className="px-6 py-3">
-                                      <select
-                                        value={editingStudent.className}
-                                        onChange={(e) =>
-                                          setEditingStudent({
-                                            ...editingStudent,
-                                            className: e.target.value,
-                                          })
-                                        }
-                                        className="w-full px-3 py-1.5 rounded-lg border border-emerald-300 outline-none text-sm font-bold"
+                                    ) : (
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-emerald-600 shrink-0">
+                                          <UserIcon className="w-4 h-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-bold text-slate-900 truncate block">{s.name}</span>
+                                            {recentlyAddedIds.includes(s.id!) && (
+                                              <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase rounded tracking-widest border border-emerald-200 shrink-0">
+                                                BARU
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    {isEditing ? (
+                                      <div className="flex flex-col gap-1">
+                                        <input
+                                          type="text"
+                                          value={editingStudent.number}
+                                          onChange={(e) => setEditingStudent({ ...editingStudent, number: e.target.value })}
+                                          placeholder="ID/Absen"
+                                          className="w-full px-3 py-1 rounded-lg border border-slate-200 outline-none text-[10px] font-mono focus:border-emerald-500"
+                                        />
+                                        <div className="relative">
+                                          <input
+                                            type="text"
+                                            value={editingStudent.password}
+                                            onChange={(e) => setEditingStudent({ ...editingStudent, password: e.target.value.toUpperCase() })}
+                                            placeholder="Password"
+                                            className="w-full px-3 py-1 pr-7 rounded-lg border border-slate-200 outline-none text-[10px] font-mono focus:border-emerald-500"
+                                          />
+                                          <button
+                                            onClick={() => {
+                                              const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                                              let res = "";
+                                              for (let i = 0; i < 5; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+                                              setEditingStudent({ ...editingStudent, password: res });
+                                            }}
+                                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-emerald-500"
+                                          >
+                                            <RefreshCcw className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-[10px] font-mono text-slate-500 leading-tight">
+                                        <div className="font-bold text-slate-700 underline decoration-slate-200 underline-offset-2">ID: {s.number}</div>
+                                        <div className="mt-0.5">PW: {s.password || "-"}</div>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    {isEditing ? (
+                                      <div className="flex flex-col gap-1">
+                                        <select
+                                          value={editingStudent.className}
+                                          onChange={(e) => setEditingStudent({ ...editingStudent, className: e.target.value })}
+                                          className="w-full px-3 py-1 rounded-lg border border-slate-200 outline-none text-[10px] font-bold bg-white"
+                                        >
+                                          {classes.map((c) => (
+                                            <option key={c.id} value={c.name}>{c.name}</option>
+                                          ))}
+                                        </select>
+                                        <input
+                                          type="text"
+                                          value={editingStudent.schoolName || ""}
+                                          onChange={(e) => setEditingStudent({ ...editingStudent, schoolName: e.target.value })}
+                                          placeholder="Sekolah"
+                                          className="w-full px-3 py-1 rounded-lg border border-slate-200 outline-none text-[10px] font-bold"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="text-[10px] font-bold text-slate-600">
+                                        <div className="flex items-center gap-1.5">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                          {s.className}
+                                        </div>
+                                        <div className="text-slate-400 mt-1 uppercase tracking-tighter text-[9px]">{s.schoolName || "-"}</div>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 whitespace-nowrap">
+                                          SKOR: {(s as any)._lastScore !== -1 ? (s as any)._lastScore : "-"}
+                                        </span>
+                                      </div>
+                                      <span
+                                        className={cn(
+                                          "text-[9px] font-black px-1.5 py-0.5 rounded border inline-block max-w-[150px] truncate",
+                                          latestResult
+                                            ? "bg-indigo-50 text-indigo-700 border-indigo-100"
+                                            : "bg-slate-50 text-slate-400 border-slate-100",
+                                        )}
+                                        title={latestResult ? getShortResult(latestResult.testType as TestType, latestResult.scores) : "Belum Tes"}
                                       >
-                                        {classes.map((c) => (
-                                          <option key={c.id} value={c.name}>
-                                            {c.name}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </td>
-                                    <td className="px-6 py-3">
-                                      <input
-                                        type="text"
-                                        value={editingStudent.schoolName || ""}
-                                        onChange={(e) =>
-                                          setEditingStudent({
-                                            ...editingStudent,
-                                            schoolName: e.target.value,
-                                          })
-                                        }
-                                        className="w-full px-3 py-1.5 rounded-lg border border-emerald-300 outline-none text-sm font-bold"
-                                      />
-                                    </td>
-                                    <td className="px-6 py-3 text-right">
-                                      <div className="flex justify-end gap-2">
+                                        {latestResult
+                                          ? getShortResult(latestResult.testType as TestType, latestResult.scores)
+                                          : "BELUM TES"}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    {isEditing ? (
+                                      <div className="flex justify-end gap-1">
                                         <button
                                           onClick={handleUpdateStudent}
-                                          className="text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg transition-colors"
+                                          className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-100"
                                           title="Simpan"
                                         >
                                           <Save className="w-4 h-4" />
                                         </button>
                                         <button
-                                          onClick={() =>
-                                            setEditingStudent(null)
-                                          }
-                                          className="text-slate-400 hover:bg-slate-100 p-2 rounded-lg transition-colors"
+                                          onClick={() => setEditingStudent(null)}
+                                          className="p-1.5 text-slate-400 hover:bg-slate-50 rounded-lg transition-colors border border-slate-100"
                                           title="Batal"
                                         >
                                           <X className="w-4 h-4" />
                                         </button>
                                       </div>
-                                    </td>
-                                  </>
-                                ) : (
-                                  <>
-                                    <td className="px-6 py-4 text-xs font-bold text-slate-400 text-center">
-                                      {(currentPage - 1) * itemsPerPage +
-                                        idx +
-                                        1}
-                                    </td>
-                                    <td className="px-6 py-4 font-mono text-xs text-slate-500">
-                                      {s.number}
-                                    </td>
-                                    <td className="px-6 py-4 font-mono text-xs text-slate-500">
-                                      {s.password ||
-                                        results.find(
-                                          (r) =>
-                                            (r.studentId === s.id ||
-                                              (r.studentName === s.name &&
-                                                r.studentClass ===
-                                                  s.className)) &&
-                                            r.studentPassword,
-                                        )?.studentPassword ||
-                                        "-"}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-bold text-slate-900">
-                                          {s.name}
-                                        </span>
-                                        {recentlyAddedIds.includes(s.id!) && (
-                                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase rounded-md tracking-wider">
-                                            Baru
-                                          </span>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600 font-medium">
-                                      {s.className}
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600 font-medium">
-                                      {s.schoolName || "-"}
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                      <div className="flex justify-end gap-2">
+                                    ) : (
+                                      <div className="flex justify-end gap-1">
                                         <button
-                                          onClick={() =>
-                                            handlePrintLoginCards([s])
-                                          }
-                                          className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition-colors"
+                                          onClick={() => handlePrintLoginCards([s])}
+                                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                                           title="Cetak Kartu Login"
                                         >
                                           <Contact className="w-4 h-4" />
                                         </button>
                                         <button
-                                          onClick={() =>
-                                            setViewingStudentProfile(s)
-                                          }
-                                          className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg transition-colors"
-                                          title="Profil & Analisis Tren"
+                                          onClick={() => setViewingStudentProfile(s)}
+                                          className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                          title="Profil & Analisis"
                                         >
-                                          <UserIcon className="w-4 h-4" />
+                                          <BarChart3 className="w-4 h-4" />
                                         </button>
                                         <button
                                           onClick={() => setEditingStudent(s)}
-                                          className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg transition-colors"
+                                          className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
                                           title="Edit Siswa"
                                         >
                                           <Pencil className="w-4 h-4" />
@@ -13356,42 +14068,43 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                                               message: `Hapus data siswa ${s.name}?`,
                                             })
                                           }
-                                          className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                           title="Hapus Siswa"
                                         >
                                           <Trash2 className="w-4 h-4" />
                                         </button>
                                       </div>
-                                    </td>
-                                  </>
-                                )}
-                              </tr>
-                            ))
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
                         ) : (
                           <tr>
-                            <td
-                              colSpan={4}
-                              className="px-6 py-12 text-center text-slate-400 text-sm font-medium"
-                            >
-                              {studentSearch
-                                ? "Tidak ada kecocokan."
-                                : "Belum ada data siswa."}
+                            <td colSpan={6} className="py-20 text-center text-slate-400 grayscale opacity-60">
+                              <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                              <p className="font-bold text-sm tracking-tight px-6 text-center">
+                                {studentSearch
+                                  ? "Tidak ada siswa yang sesuai dengan pencarian Anda."
+                                  : "Belum ada data siswa yang terdaftar di sistem."}
+                              </p>
                             </td>
                           </tr>
                         )}
                       </tbody>
                     </table>
-                    <PaginationControls
-                      currentPage={currentPage}
-                      totalPages={Math.ceil(
-                        filteredStudents.length / itemsPerPage,
-                      )}
-                      onPageChange={setCurrentPage}
-                      totalItems={filteredStudents.length}
-                      itemsPerPage={itemsPerPage}
-                    />
                   </div>
                 </div>
+
+                <PaginationControls
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(
+                    filteredStudents.length / itemsPerPage,
+                  )}
+                  onPageChange={setCurrentPage}
+                  totalItems={filteredStudents.length}
+                  itemsPerPage={itemsPerPage}
+                />
               </div>
             </motion.div>
           )}
@@ -13632,7 +14345,7 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                   <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
                     Aplikasi ini di desain & dikembangkan oleh:{" "}
                     <span className="font-bold text-slate-700">
-                      W. Purnomo-SMPN 2 Magelang
+                      W. Purnomo - 2026
                     </span>
                   </p>
                 </div>
@@ -14684,11 +15397,11 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
                                   title={result.analysis}
                                 >
                                   {result.analysis
-                                    .replace(
+                                    ?.replace(
                                       /Penjelasan lebih lanjut tentang hasil tes bisa dibaca pada lampiran surat keterangan ini\./g,
                                       "",
                                     )
-                                    .trim()}
+                                    ?.trim()}
                                 </div>
                               </td>
                               <td className="p-4 text-right">
@@ -14890,8 +15603,18 @@ Berikan analisis mendalam mengenai karakteristik kelas ini berdasarkan hasil tes
               />
             </motion.div>
           )}
+
+          {activeTab === "guide" && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <TeacherGuide onBack={() => setActiveTab("dashboard")} />
+            </motion.div>
+          )}
         </div>
       </div>
+    </div>
 
       {confirmDelete && (
         <ConfirmModal
@@ -15805,6 +16528,34 @@ const TeacherGuide = ({ onBack }: { onBack: () => void }) => (
           </div>
         </section>
 
+        <section>
+          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <Monitor className="w-6 h-6 text-emerald-600" /> 5. Cara Instal Aplikasi di Komputer / Laptop (PWA)
+          </h3>
+          <div className="prose prose-emerald text-slate-600">
+            <p className="mb-3">
+              Aplikasi <strong>PsikoTest</strong> mendukung pemasangan langsung di komputer Anda (menggunakan teknologi Progressive Web App) sehingga bisa diakses cepat lewat pintasan di Desktop maupun Taskbar:
+            </p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                Buka link web aplikasi ini di browser komputer Anda (Sangat disarankan menggunakan <strong>Google Chrome</strong> atau <strong>Microsoft Edge</strong>).
+              </li>
+              <li>
+                Di ujung kanan **Bilah Alamat (Address Bar)** browser Anda (di samping tombol bintang/bookmark), cari dan klik tombol atau ikon **"Instal PsikoTest"** (berupa ikon monitor kecil dengan tanda panah ke bawah, atau ikon tambah +).
+              </li>
+              <li>
+                Saat muncul jendela pop-up konfirmasi, klik tombol <strong>"Instal" / "Install"</strong>.
+              </li>
+              <li>
+                Aplikasi akan langsung terbuka di jendela mandiri, dan shortcut dengan **ikon logo baru PsikoTest** yang telah dikustomisasi akan muncul otomatis di **Desktop** dan **Taskbar** komputer atau laptop Anda.
+              </li>
+              <li>
+                Kini guru BK dan siswa dapat langsung meluncurkan aplikasi ini layaknya software bawaan komputer berkat dukungan **Web App Shortcut** ini.
+              </li>
+            </ul>
+          </div>
+        </section>
+
         <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
           <h4 className="font-bold text-emerald-900 mb-2">
             Tips Progres Siswa:
@@ -15902,10 +16653,13 @@ const IdentityForm = ({
   const handleGuestSubmit = async () => {
     const newErrors: Record<string, string> = {};
     if (!guestName.trim()) newErrors.name = "Nama lengkap wajib diisi.";
+    else if (guestName.trim().length < 3) newErrors.name = "Nama lengkap minimal 3 karakter.";
     if (!guestJenjang) newErrors.jenjang = "Silakan pilih jenjang pendidikan.";
     if (!guestAsal.trim())
       newErrors.asal = "Asal sekolah atau alamat wajib diisi.";
+    else if (guestAsal.trim().length < 3) newErrors.asal = "Asal sekolah minimal 3 karakter.";
     if (!guestKelas.trim()) newErrors.kelas = "Kelas atau umur wajib diisi.";
+    else if (guestKelas.trim().length < 1) newErrors.kelas = "Kelas atau umur minimal 1 karakter.";
 
     if (Object.keys(newErrors).length > 0) {
       setFormErrors(newErrors);
@@ -16484,8 +17238,35 @@ export default function App() {
   const [activeCustomTest, setActiveCustomTest] = useState<any | null>(null);
   const [isAnalyzingTest, setIsAnalyzingTest] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [offlineResults, setOfflineResults] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem("offline_test_results");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      showToast("Koneksi terhubung kembali. Sinkronisasi siap.", "info");
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showToast("Koneksi terputus. Mengaktifkan Mode Offline.", "error");
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
   const [view, setView] = useState<
-    "dashboard" | "admin" | "guide" | "create-test" | "history"
+    "dashboard" | "admin" | "guide" | "create-test" | "history" | "career-advisor"
   >("dashboard");
   const [toast, setToast] = useState<{
     message: string;
@@ -16953,16 +17734,30 @@ export default function App() {
     }
   }, [user]);
 
+  const combinedUserResults = React.useMemo(() => {
+    const filteredOffline = offlineResults.filter(off => {
+      return !userResults.some(ur => ur.testType === off.testType && ur.isOfflineSaved !== true);
+    });
+    return [...filteredOffline, ...userResults].sort((a, b) => {
+      const getMs = (item: any) => {
+        if (item.timestamp?.seconds) return item.timestamp.seconds * 1000;
+        if (typeof item.timestamp === "string") return new Date(item.timestamp).getTime();
+        return 0;
+      };
+      return getMs(b) - getMs(a);
+    });
+  }, [userResults, offlineResults]);
+
   useEffect(() => {
     if (
       user &&
       user.role === "student" &&
       customTests.length > 0 &&
-      userResults.length >= 0
+      combinedUserResults.length >= 0
     ) {
       const unfinishedTests = customTests.filter(
         (ct) =>
-          ct.isActive && !userResults.some((ur) => ur.testType === ct.testType),
+          ct.isActive && !combinedUserResults.some((ur) => ur.testType === ct.testType),
       );
 
       if (unfinishedTests.length > 0) {
@@ -16970,7 +17765,7 @@ export default function App() {
         // For now, let's just make sure they see it in the dashboard
       }
     }
-  }, [user, customTests, userResults]);
+  }, [user, customTests, combinedUserResults]);
 
   const markAsRead = async (id: string) => {
     try {
@@ -16981,7 +17776,7 @@ export default function App() {
   };
 
   const getRecommendation = (type: TestType) => {
-    const latest = userResults.find((r) => r.testType === type);
+    const latest = combinedUserResults.find((r) => r.testType === type);
     if (!latest) return undefined;
 
     // Simple recommendation logic based on analysis
@@ -17028,6 +17823,9 @@ export default function App() {
     if (type === "dreams") {
       return "Wujudkan cita-citamu dengan perencanaan yang matang dan doa.";
     }
+    if (type === "aptitude_interest") {
+      return "Eksplorasi karir yang sesuai dengan minat RIASEC Anda.";
+    }
     return "Terus asah potensi diri berdasarkan hasil tes ini.";
   };
 
@@ -17041,16 +17839,83 @@ export default function App() {
     const testType = activeTest || activeCustomTest.testType;
     let analysis = "";
 
-    try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
-      const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Sebagai seorang psikolog dan konselor pendidikan, tolong analisis hasil tes ${testType} dari siswa bernama ${user.name} (Kelas: ${user.className || "Umum"}).
-      
+    if (!isOnline) {
+      // Local fallback in offline mode
+      analysis = activeCustomTest?.aiRecommendation || analyzeResult(testType, scores);
+    } else {
+      try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
+        const ai = new GoogleGenAI({ apiKey });
+        
+        let scoreInfo = Object.entries(scores)
+          .map(([k, v]) => {
+            if (testType === "aptitude_interest") {
+              const riasecMap: Record<string, string> = {
+                realistic: "Realistic (Praktis/Fisik)",
+                investigative: "Investigative (Analitis/Ilmiah)",
+                artistic: "Artistic (Seni/Kreatif)",
+                social: "Social (Sosial/Pelayanan)",
+                enterprising: "Enterprising (Kewirausahaan/Kepemimpinan)",
+                conventional: "Conventional (Teratur/Administratif)"
+              };
+              return `- ${riasecMap[k] || k}: ${v}`;
+            }
+            if (testType === "multiple_intelligences") {
+              const miNames: Record<string, string> = {
+                linguistic: "Linguistik (Bahasa)",
+                logical: "Logis-Matematis",
+                spatial: "Visual-Spasial",
+                kinesthetic: "Kinestetik-Jasmani",
+                musical: "Musikal",
+                interpersonal: "Interpersonal (Sosial)",
+                intrapersonal: "Intrapersonal (Diri)",
+                naturalist: "Naturalis (Alam)"
+              };
+              return `- ${miNames[k] || k}: ${v}`;
+            }
+            if (testType === "personality") {
+               return `- ${k.charAt(0).toUpperCase() + k.slice(1)}: ${v}`;
+            }
+            if (testType === "learning_style") {
+               return `- Gaya Belajar ${k.charAt(0).toUpperCase() + k.slice(1)}: ${v}`;
+            }
+            if (testType === "anxiety") {
+               return `- Tingkat Kecemasan (Skor Total): ${v}`;
+            }
+            if (testType === "subject_interest" || testType === "disliked_subjects" || testType === "liked_teachers" || testType === "disliked_teachers") {
+              const subjectMap: Record<string, string> = {
+                agama: "Pendidikan Agama",
+                ppkn: "PPKn",
+                b_indo: "Bahasa Indonesia",
+                mtk: "Matematika",
+                ipa: "IPA",
+                ips: "IPS",
+                b_ing: "Bahasa Inggris",
+                seni: "Seni Budaya",
+                pjok: "PJOK",
+                prakarya: "Prakarya",
+                informatika: "Informatika",
+                b_daerah: "Bahasa Daerah",
+                bk: "BK"
+              };
+              return `- ${subjectMap[k] || k}: ${v}`;
+            }
+            return `- ${k}: ${v}`;
+          })
+          .join("\n");
+
+        let contextPrompt = "";
+        if (testType === "aptitude_interest") {
+          contextPrompt = `Tes ini menggunakan model RIASEC (Holland Codes). Berikan analisis mendalam tentang kekuatan utama siswa berdasarkan profil RIASEC mereka. Berikan juga rekomendasi karir yang sangat personal, spesifik, dan relevan dengan minat mereka. Pastikan rekomendasi mencakup alasan mengapa karir tersebut cocok dengan skor RIASEC mereka.`;
+        }
+
+        const prompt = `Sebagai seorang psikolog dan konselor pendidikan, tolong analisis hasil tes ${testType} dari siswa bernama ${user.name} (Kelas: ${user.className || "Umum"}).
+        
+${contextPrompt}
+
 Skor yang diperoleh:
-${Object.entries(scores)
-  .map(([k, v]) => `- ${k}: ${v}`)
-  .join("\n")}
+${scoreInfo}
 ${
   testType === "wartegg" && extraData?.titles
     ? `Judul Gambar Wartegg:\n${Object.entries(extraData.titles)
@@ -17059,32 +17924,8 @@ ${
     : ""
 }
 ${
-  testType === "subject_interest" && extraData?.reasons
-    ? `Minat Mata Pelajaran & Alasan:\n${Object.entries(extraData.reasons)
-        .map(([id, reason]) => {
-          const map: Record<string, string> = {
-            agama: "Pendidikan Agama",
-            ppkn: "PPKn",
-            b_indo: "Bahasa Indonesia",
-            mtk: "Matematika",
-            ipa: "IPA",
-            ips: "IPS",
-            b_ing: "Bahasa Inggris",
-            seni: "Seni Budaya",
-            pjok: "PJOK",
-            prakarya: "Prakarya",
-            informatika: "Informatika",
-            b_daerah: "Bahasa Daerah",
-            bk: "BK",
-          };
-          return `- ${map[id] || id}: ${reason}`;
-        })
-        .join("\n")}`
-    : ""
-}
-${
-  testType === "disliked_subjects" && extraData?.reasons
-    ? `Mata Pelajaran yang Tidak Disukai & Alasan:\n${Object.entries(extraData.reasons)
+  (testType === "subject_interest" || testType === "disliked_subjects" || testType === "liked_teachers" || testType === "disliked_teachers") && extraData?.reasons
+    ? `Detail & Alasan:\n${Object.entries(extraData.reasons)
         .map(([id, reason]) => {
           const map: Record<string, string> = {
             agama: "Pendidikan Agama",
@@ -17108,27 +17949,28 @@ ${
 }
 
 Berikan analisis mendalam dan rekomendasi yang dipersonalisasi untuk pengembangan diri dan karir/pendidikan selanjutnya. Fokuskan pada:
-1. **Profil Psikologis & Kekuatan Utama**: Identifikasi ciri kepribadian dominan dan kelebihan spesifik siswa.
-2. **Area Pengembangan & Tantangan**: Identifikasi aspek yang perlu ditingkatkan, potensi hambatan, dan cara menghadapinya.
-3. **Rekomendasi Karir Personal**: Daftar minimal 3 jalur karir yang sangat sesuai dengan profil ini beserta alasannya.
-4. **Strategi Pembelajaran & Studi**: Metode belajar atau jenis lingkungan pendidikan yang paling efektif untuk siswa ini.
+1. **Analisis Kekuatan & Karakteristik**: Identifikasi kekuatan unik, bakat, dan ciri kepribadian dominan siswa berdasarkan hasil tes.
+2. **Rekomendasi Karir & Jurusan**: Sebutkan minimal 5 jalur karir spesifik yang sangat relevan dengan profil ini, lengkap dengan alasan mengapa karir tersebut cocok. Sertakan juga saran jurusan pendidikan (SMA/SMK/Kuliah).
+3. **Area Pengembangan Diri**: Identifikasi tantangan yang mungkin dihadapi dan bagaimana cara mengatasinya.
+4. **Action Plan (Rencana Aksi)**: Langkah konkrit apa yang harus diambil siswa sekarang untuk mencapai potensi maksimalnya.
 
-Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan format Markdown yang rapi (bold headings, bullet points, numbered lists).`;
+Gunakan bahasa Indonesia yang profesional, empatik, inspiratif, dan mudah dipahami oleh siswa usia sekolah. Gunakan format Markdown yang rapi dengan heading yang jelas, bullet points, dan penekanan (bold).`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt,
-      });
+        const response = await ai.models.generateContent({
+          model: "gemini-3.1-pro-preview",
+          contents: prompt,
+        });
 
-      analysis =
-        response?.text ||
-        activeCustomTest?.aiRecommendation ||
-        analyzeResult(testType, scores);
-    } catch (error) {
-      console.error("Error generating AI analysis:", error);
-      // Fallback to static analysis
-      analysis =
-        activeCustomTest?.aiRecommendation || analyzeResult(testType, scores);
+        analysis =
+          response?.text ||
+          activeCustomTest?.aiRecommendation ||
+          analyzeResult(testType, scores);
+      } catch (error) {
+        console.error("Error generating AI analysis:", error);
+        // Fallback to static analysis
+        analysis =
+          activeCustomTest?.aiRecommendation || analyzeResult(testType, scores);
+      }
     }
 
     const result: any = {
@@ -17142,8 +17984,9 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
       scores,
       analysis,
       extraData: extraData || null,
-      timestamp: serverTimestamp(),
+      timestamp: isOnline ? serverTimestamp() : { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
       teacherId: (user as any).teacherId || "admin",
+      isOfflineSaved: !isOnline,
     };
 
     if (activeCustomTest?.visualizationType) {
@@ -17152,13 +17995,29 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
       result.visualizationType = null;
     }
 
+    if (!isOnline) {
+      // Local storage persistence in offline mode
+      const offlineId = "offline_" + Date.now();
+      const offlineResult = { ...result, id: offlineId };
+      const updatedOfflineList = [...offlineResults, offlineResult];
+      setOfflineResults(updatedOfflineList);
+      localStorage.setItem("offline_test_results", JSON.stringify(updatedOfflineList));
+
+      setTestResult(offlineResult);
+      setActiveTest(null);
+      setActiveCustomTest(null);
+      showToast("Hasil tes disimpan lokal (Mode Offline). Data akan disinkronisasi saat tersambung internet.", "info");
+      setIsAnalyzingTest(false);
+      return;
+    }
+
     try {
       const docRef = await addDoc(collection(db, "test_results"), result);
 
       // Notify teacher if anxiety is high
       const targetTeacherId = (user as any).teacherId || "admin";
-
-      const anxietyScore = scores["anxiety_score"] || 0;
+      
+      const anxietyScore = scores["anxiety"] || 0;
       if (testType === "anxiety" && anxietyScore > 45) {
         await addDoc(collection(db, "notifications"), {
           userId: targetTeacherId,
@@ -17497,6 +18356,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
         setShowNotifications={setShowNotifications}
         markAsRead={markAsRead}
         appSettings={appSettings}
+        isOnline={isOnline}
         onBack={() => {
           setActiveTest(null);
           setTestResult(null);
@@ -17547,7 +18407,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                 results={
                   user?.role === "admin" || user?.role === "teacher"
                     ? allResults
-                    : userResults
+                    : combinedUserResults
                 }
                 customTests={customTests}
               />
@@ -17620,9 +18480,9 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                   </button>
                 </div>
                 <div className="p-8">
-                  {userResults.length > 0 ? (
+                  {combinedUserResults.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {userResults
+                      {combinedUserResults
                         .sort((a, b) => {
                           const timeA = a.timestamp?.seconds || 0;
                           const timeB = b.timestamp?.seconds || 0;
@@ -17642,17 +18502,24 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                                   <h4 className="font-black text-slate-900 text-sm leading-tight mb-1">
                                     {TESTS[res.testType]?.title || res.testType}
                                   </h4>
-                                  <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
-                                    {res.timestamp
-                                      ? new Date(
-                                          res.timestamp.seconds * 1000,
-                                        ).toLocaleDateString("id-ID", {
-                                          day: "numeric",
-                                          month: "short",
-                                          year: "numeric",
-                                        })
-                                      : "-"}
-                                  </p>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
+                                      {res.timestamp
+                                        ? new Date(
+                                            res.timestamp.seconds * 1000,
+                                          ).toLocaleDateString("id-ID", {
+                                            day: "numeric",
+                                            month: "short",
+                                            year: "numeric",
+                                          })
+                                        : "-"}
+                                    </p>
+                                    {res.isOfflineSaved && (
+                                      <span className="text-[9px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-black tracking-wider uppercase inline-block border border-amber-200">
+                                        Offline
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -17687,6 +18554,22 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                   )}
                 </div>
               </div>
+            </motion.div>
+          ) : view === "career-advisor" ? (
+            <motion.div
+              key="career-advisor-view"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <CareerAdvisor
+                user={user!}
+                testResults={combinedUserResults}
+                customTests={customTests}
+                onStartTest={(testType) => {
+                  setActiveTest(testType);
+                }}
+                isOnline={isOnline}
+              />
             </motion.div>
           ) : (
             <motion.div
@@ -17781,7 +18664,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                 customTests.filter(
                   (ct) =>
                     ct.isActive &&
-                    !userResults.some((ur) => ur.testType === ct.testType),
+                    !combinedUserResults.some((ur) => ur.testType === ct.testType),
                 ).length > 0 && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -17802,7 +18685,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                             customTests.filter(
                               (ct) =>
                                 ct.isActive &&
-                                !userResults.some(
+                                !combinedUserResults.some(
                                   (ur) => ur.testType === ct.testType,
                                 ),
                             ).length
@@ -17816,7 +18699,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                         const firstUnfinished = customTests.find(
                           (ct) =>
                             ct.isActive &&
-                            !userResults.some(
+                            !combinedUserResults.some(
                               (ur) => ur.testType === ct.testType,
                             ),
                         );
@@ -17839,7 +18722,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                     onSelect={setActiveTest}
                     onPreview={setShowPreview}
                     recommendation={getRecommendation(type)}
-                    results={userResults.filter((r) => r.testType === type)}
+                    results={combinedUserResults.filter((r) => r.testType === type)}
                   />
                 ))}
                 {customTests
@@ -17852,7 +18735,7 @@ Gunakan bahasa Indonesia yang profesional, empatik, dan inspiratif. Gunakan form
                       onSelect={() => setActiveCustomTest(test)}
                       onPreview={setShowPreview}
                       recommendation={undefined}
-                      results={userResults.filter(
+                      results={combinedUserResults.filter(
                         (r) => r.testType === test.testType,
                       )}
                     />

@@ -45,6 +45,8 @@ export interface TestResult {
   extraData?: any;
   teacherId?: string;
   timestamp: any;
+  isOfflineSaved?: boolean;
+  offlineId?: string;
 }
 
 export interface ClassInfo {

@@ -1,5 +1,6 @@
 {
   "name": "PsikoTest SMP/SMA",
   "description": "Aplikasi tes psikologi komprehensif untuk siswa SMP dan SMA, mencakup gaya belajar, kecerdasan majemuk, kepribadian, bakat minat, penjurusan, dan kecemasan.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

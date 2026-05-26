@@ -566,6 +566,33 @@ export const getShortResult = (testType: TestType, scores: Record<string, number
   }
 };
 
+export const getNumericalScore = (testType: TestType, scores: Record<string, number>): number => {
+  switch (testType) {
+    case 'anxiety':
+      return scores['anxiety'] || 0;
+    case 'cfit':
+      return scores['cfit'] || 0;
+    case 'multiple_intelligences':
+    case 'aptitude_interest':
+    case 'learning_style':
+    case 'school_major':
+    case 'personality': {
+      // For categorical tests, we can use the highest score as the "final score" for sorting
+      const values = Object.values(scores).filter(v => typeof v === 'number');
+      return values.length > 0 ? Math.max(...values) : 0;
+    }
+    case 'subject_interest':
+    case 'disliked_subjects':
+    case 'liked_teachers':
+    case 'disliked_teachers':
+      // Return the count of selected items
+      return Object.values(scores).filter(v => v > 0).length;
+    default:
+      // For others, return 0 or some base value
+      return 0;
+  }
+};
+
 export const analyzeResult = (testType: TestType, scores: Record<string, number>) => {
   switch (testType) {
     case 'subject_interest': {
@@ -801,12 +828,12 @@ Berdasarkan jawaban Anda, kecenderungan kepribadian Anda mengarah pada tipe **${
       };
 
       const riasecDesc: Record<string, string> = {
-        realistic: "Anda menyukai pekerjaan yang melibatkan aktivitas fisik, mesin, alat, atau berada di luar ruangan. Anda lebih suka bekerja dengan benda daripada ide atau orang.\n\n**Saran Karir:** Teknik, mekanik, pertanian, atlet, atau kepolisian.",
-        investigative: "Anda menyukai observasi, penelitian, analisis, dan pemecahan masalah yang kompleks. Anda lebih suka bekerja dengan ide dan konsep.\n\n**Saran Karir:** Ilmuwan, peneliti, dokter, programmer, atau analis data.",
-        artistic: "Anda memiliki imajinasi tinggi, menyukai kebebasan berekspresi, dan menghindari rutinitas yang kaku. Anda menyukai seni, desain, dan kreativitas.\n\n**Saran Karir:** Desainer, penulis, musisi, arsitek, atau aktor.",
-        social: "Anda sangat suka berinteraksi, membantu, melatih, atau menyembuhkan orang lain. Anda memiliki empati dan keterampilan komunikasi yang baik.\n\n**Saran Karir:** Guru, perawat, konselor, psikolog, atau pekerja sosial.",
-        enterprising: "Anda suka memimpin, memengaruhi orang lain, dan mengambil risiko untuk mencapai tujuan ekonomi atau organisasi. Anda ambisius dan energik.\n\n**Saran Karir:** Pengusaha, manajer, pengacara, sales, atau politisi.",
-        conventional: "Anda menyukai pekerjaan yang terstruktur, teratur, dan melibatkan data atau angka. Anda sangat teliti dan menghargai keteraturan.\n\n**Saran Karir:** Akuntan, administrator, pustakawan, atau analis keuangan."
+        realistic: "Anda menyukai pekerjaan yang melibatkan aktivitas fisik, mesin, alat, atau berada di luar ruangan. Anda lebih suka bekerja dengan benda daripada ide atau orang.\n\n**Analisis Kekuatan:** Praktis, tekun, memiliki koordinasi fisik yang baik, dan handal dalam pemecahan masalah teknis.\n\n**Saran Karir:** Teknik Sipil/Mesin, Mekanik Otomotif, Arsitek Landskap, Ahli Pertanian, Pilot, Polisi/TNI, atau Ahli Kelautan.",
+        investigative: "Anda menyukai observasi, penelitian, analisis, dan pemecahan masalah yang kompleks. Anda lebih suka bekerja dengan ide dan konsep.\n\n**Analisis Kekuatan:** Kritis, analitis, logis, memiliki rasa ingin tahu yang tinggi, dan mampu bekerja secara mandiri.\n\n**Saran Karir:** Ilmuwan Bio-medis, Peneliti Laboratorium, Dokter Spesialis, Software Developer, Data Scientist, Ahli Astronomi, atau Psikolog Riset.",
+        artistic: "Anda memiliki imajinasi tinggi, menyukai kebebasan berekspresi, dan menghindari rutinitas yang kaku. Anda menyukai seni, desain, dan kreativitas.\n\n**Analisis Kekuatan:** Kreatif, ekspresif, intuitif, berjiwa bebas, dan memiliki apresiasi estetika yang tinggi.\n\n**Saran Karir:** Desainer Grafis, Penulis Kreatif/Copywriter, Musisi/Komposer, Arsitek, Sutradara Film, Fotografer, atau Fashion Designer.",
+        social: "Anda sangat suka berinteraksi, membantu, melatih, atau menyembuhkan orang lain. Anda memiliki empati dan keterampilan komunikasi yang baik.\n\n**Analisis Kekuatan:** Empatik, kooperatif, ramah, komunikatif, dan memiliki jiwa pelayanan yang tinggi.\n\n**Saran Karir:** Guru/Dosen, Tenaga Kesehatan (Perawat/Dokter), Konselor/Psikolog Klinis, Pekerja Sosial, Personalia (HRD), atau Public Relations.",
+        enterprising: "Anda suka memimpin, memengaruhi orang lain, dan mengambil risiko untuk mencapai tujuan ekonomi atau organisasi. Anda ambisius and energik.\n\n**Analisis Kekuatan:** Persuasif (meyakinkan), ambisius, percaya diri, memiliki jiwa kepemimpinan, dan pandai bernegosiasi.\n\n**Saran Karir:** Pengusaha (Entrepreneur), Manajer Pemasaran, Pengacara, Politisi, Agen Real Estate, Sales Manager, atau Public Speaker.",
+        conventional: "Anda menyukai pekerjaan yang terstruktur, teratur, dan melibatkan data atau angka. Anda sangat teliti dan menghargai keteraturan.\n\n**Analisis Kekuatan:** Teliti, rapi, terorganisir, efisien, dan memiliki perhatian tinggi terhadap detail.\n\n**Saran Karir:** Akuntan Publik, Sekretaris Eksekutif, Bankir, Analis Data Statistik, Pustakawan, Auditor, atau Administrator Database."
       };
 
       return `### Hasil Analisis: Minat ${riasecNames[topInterest] || topInterest}
